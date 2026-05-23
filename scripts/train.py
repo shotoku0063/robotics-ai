@@ -6,14 +6,14 @@ from torch.utils.data import DataLoader
 from pathlib import Path
 
 
-def parse_args():
+def parse_args(args=None):
     parser = argparse.ArgumentParser(description='Train robotics AI model')
     parser.add_argument('--data', type=str, default='data/processed', help='Dataset path')
     parser.add_argument('--epochs', type=int, default=100)
     parser.add_argument('--batch-size', type=int, default=32)
     parser.add_argument('--lr', type=float, default=1e-3)
     parser.add_argument('--output', type=str, default='models/', help='Model save path')
-    return parser.parse_args()
+    return parser.parse_args(args)
 
 
 def train(args):
