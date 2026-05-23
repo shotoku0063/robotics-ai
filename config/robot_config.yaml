@@ -1,0 +1,18 @@
+robot:
+  name: "robotics_ai_robot"
+  rate_hz: 30
+
+perception:
+  camera_topic: "/camera/image_raw"
+  model_path: "models/detector.pt"
+  confidence_threshold: 0.5
+  device: "cuda"  # "cpu" or "cuda"
+
+planning:
+  max_velocity: 0.5  # m/s
+  max_angular_velocity: 1.0  # rad/s
+  goal_tolerance: 0.1  # m
+
+simulation:
+  use_gazebo: true
+  world_file: "worlds/default.world"

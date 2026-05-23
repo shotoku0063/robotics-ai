@@ -1,0 +1,54 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+.eggs/
+*.egg
+.venv/
+venv/
+env/
+
+# PyTorch / ML
+*.pt
+*.pth
+*.onnx
+runs/
+wandb/
+
+# ROS 2
+log/
+build/
+install/
+*.pyc
+
+# Data
+data/raw/
+data/processed/
+*.bag
+*.db3
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# macOS
+.DS_Store
+
+# Environment
+.env
+.env.local
+
+# Gazebo
+~/.gazebo/
+/tmp/

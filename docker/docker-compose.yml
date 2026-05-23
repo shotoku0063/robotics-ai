@@ -1,0 +1,34 @@
+version: '3.8'
+
+services:
+  robotics-ai:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: robotics_ai_dev
+    network_mode: host
+    environment:
+      - DISPLAY=${DISPLAY}
+      - ROS_DOMAIN_ID=0
+    volumes:
+      - ..:/workspace
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw
+      - ${HOME}/.gazebo:/root/.gazebo
+    devices:
+      - /dev/video0:/dev/video0  # カメラデバイス（あれば）
+    stdin_open: true
+    tty: true
+    command: /bin/bash
+
+  gazebo:
+    image: osrf/ros:humble-desktop
+    container_name: gazebo_sim
+    network_mode: host
+    environment:
+      - DISPLAY=${DISPLAY}
+    volumes:
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw
+      - ${HOME}/.gazebo:/root/.gazebo
+    command: bash -c "source /opt/ros/humble/setup.bash && gazebo"
+    profiles:
+      - simulation
