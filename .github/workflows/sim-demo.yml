@@ -1,0 +1,99 @@
+name: Simulation Demo
+
+on:
+  # 手動実行 + 関連ファイル変更時のみ
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "docker/Dockerfile.simulation"
+      - "docker/docker-compose.yml"
+      - "docker/entrypoint_sim.sh"
+      - "ros2_ws/src/sim_demo/**"
+      - "scripts/record_demo.sh"
+      - ".github/workflows/sim-demo.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "docker/Dockerfile.simulation"
+      - "ros2_ws/src/sim_demo/**"
+      - "scripts/record_demo.sh"
+      - ".github/workflows/sim-demo.yml"
+
+jobs:
+  record-demo:
+    name: Record UR5e Pick & Place Video
+    runs-on: ubuntu-22.04
+    timeout-minutes: 45
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Cache Docker layers
+        uses: actions/cache@v4
+        with:
+          path: /tmp/.buildx-cache-sim
+          key: ${{ runner.os }}-buildx-sim-${{ hashFiles('docker/Dockerfile.simulation', 'requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-buildx-sim-
+
+      - name: Build simulation image
+        run: |
+          docker buildx build \
+            --file docker/Dockerfile.simulation \
+            --cache-from type=local,src=/tmp/.buildx-cache-sim \
+            --cache-to type=local,dest=/tmp/.buildx-cache-sim-new,mode=max \
+            --tag robotics-ai-sim:ci \
+            --load \
+            .
+
+      - name: Rotate build cache
+        run: |
+          rm -rf /tmp/.buildx-cache-sim
+          mv /tmp/.buildx-cache-sim-new /tmp/.buildx-cache-sim
+
+      - name: Build ROS 2 workspace
+        run: |
+          docker run --rm \
+            -v ${{ github.workspace }}:/workspace \
+            -w /workspace \
+            robotics-ai-sim:ci \
+            bash -c "source /opt/ros/humble/setup.bash && \
+                     cd ros2_ws && \
+                     colcon build --symlink-install --packages-select sim_demo"
+
+      - name: Run headless simulation and record video
+        run: |
+          mkdir -p output
+          docker run --rm \
+            -v ${{ github.workspace }}:/workspace \
+            -v ${{ github.workspace }}/output:/workspace/output \
+            -e DISPLAY=:99 \
+            -e QT_QPA_PLATFORM=offscreen \
+            --entrypoint /entrypoint_sim.sh \
+            robotics-ai-sim:ci \
+            bash -c "source /workspace/ros2_ws/install/setup.bash && \
+                     timeout 90 ros2 launch sim_demo ur5e_demo.launch.py || true"
+
+      - name: Verify output
+        run: |
+          if [[ -f output/demo.mp4 ]]; then
+            ls -lh output/demo.mp4
+            echo "✅ Video generated successfully"
+          else
+            echo "⚠️  No video file produced. Inspect previous step logs."
+            ls -la output/ || true
+            exit 1
+          fi
+
+      - name: Upload demo video as artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ur5e-pick-and-place-demo
+          path: output/demo.mp4
+          if-no-files-found: warn
+          retention-days: 14

@@ -49,9 +49,13 @@ def generate_launch_description():
         executable="pick_and_place",
         name="pick_and_place_node",
         output="screen",
+        parameters=[{
+            "startup_delay_sec": 12.0,   # Gazebo + コントローラ起動を待つ
+            "step_duration_sec": 2.5,
+        }],
     )
 
-    # MP4 録画ノード
+    # MP4 録画ノード（Pick & Place 約 50秒 + 余裕 5秒 = 55秒）
     recorder = Node(
         package="sim_demo",
         executable="video_recorder",
@@ -60,7 +64,7 @@ def generate_launch_description():
         parameters=[{
             "output_path": "/workspace/output/demo.mp4",
             "fps": 30,
-            "duration_sec": 30,
+            "duration_sec": 55,
         }],
     )
 

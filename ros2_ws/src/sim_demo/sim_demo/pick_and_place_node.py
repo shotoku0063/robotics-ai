@@ -1,57 +1,133 @@
 """UR5e Pick & Place オーケストレーションノード.
 
-MoveIt 2 経由で 3 個の部品を順次把持しトレーに配置する。
-本ファイルは「動作シーケンスの骨格」を示すスケルトン実装で、
-実 IK・把持指令は moveit2_py の MoveGroupCommander などで実装する。
+scaled_joint_trajectory_controller/follow_joint_trajectory アクション経由で
+事前定義したジョイント角キーフレームを順次実行する。
+
+MoveIt 2 IK ソルバを介さず直接ジョイント角を指定することで、
+シミュレーション環境の依存を最小化している（実機転用時は MoveIt 2 統合に
+差し替え推奨）。
 """
 
+import math
+import threading
+import time
+
 import rclpy
+from rclpy.action import ActionClient
 from rclpy.node import Node
-from geometry_msgs.msg import Pose
+from builtin_interfaces.msg import Duration
+from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
+from control_msgs.action import FollowJointTrajectory
 
 
-# 部品の初期座標（world ファイルと一致）と配置先トレー座標
-COMPONENTS = [
-    {"name": "red",   "pick": (0.40, -0.15, 0.46), "place": (0.65, 0.18, 0.46)},
-    {"name": "blue",  "pick": (0.50, -0.05, 0.46), "place": (0.70, 0.20, 0.46)},
-    {"name": "green", "pick": (0.60,  0.05, 0.46), "place": (0.75, 0.22, 0.46)},
+UR5E_JOINTS = [
+    "shoulder_pan_joint",
+    "shoulder_lift_joint",
+    "elbow_joint",
+    "wrist_1_joint",
+    "wrist_2_joint",
+    "wrist_3_joint",
 ]
+
+
+def _rad(deg):
+    return deg * math.pi / 180.0
+
+
+# 半導体ワークベンチ上のキーフレーム（ラフな目視推定値、要キャリブレーション）
+# home → pre-pick → pick → lift → pre-place → place → lift → home
+# 単位: rad
+HOME = [_rad(0), _rad(-90), _rad(0), _rad(-90), _rad(0), _rad(0)]
+
+PICK_POSES = {
+    "red":   [_rad( 20), _rad(-60), _rad(95), _rad(-125), _rad(-90), _rad(0)],
+    "blue":  [_rad(  0), _rad(-55), _rad(100), _rad(-135), _rad(-90), _rad(0)],
+    "green": [_rad(-15), _rad(-60), _rad(95), _rad(-125), _rad(-90), _rad(0)],
+}
+
+PLACE_POSES = {
+    "red":   [_rad(-25), _rad(-55), _rad(85), _rad(-120), _rad(-90), _rad(0)],
+    "blue":  [_rad(-30), _rad(-55), _rad(85), _rad(-120), _rad(-90), _rad(0)],
+    "green": [_rad(-35), _rad(-55), _rad(85), _rad(-120), _rad(-90), _rad(0)],
+}
+
+
+def _lift_offset(pose, lift_rad=-0.3):
+    """shoulder_lift_joint を上方向に少し回転させた“ホバー”姿勢."""
+    hovered = list(pose)
+    hovered[1] += lift_rad
+    return hovered
 
 
 class PickAndPlaceNode(Node):
     def __init__(self):
         super().__init__("pick_and_place_node")
-        self.get_logger().info("UR5e Pick & Place デモ開始")
-        self.timer = self.create_timer(2.0, self._step)
-        self.index = 0
+        self.declare_parameter("startup_delay_sec", 10.0)
+        self.declare_parameter("step_duration_sec", 2.5)
+        self.startup_delay = self.get_parameter("startup_delay_sec").value
+        self.step_duration = self.get_parameter("step_duration_sec").value
 
-    def _step(self):
-        if self.index >= len(COMPONENTS):
-            self.get_logger().info("すべての部品の Pick & Place が完了しました")
-            self.timer.cancel()
+        action_topic = "/scaled_joint_trajectory_controller/follow_joint_trajectory"
+        self.client = ActionClient(self, FollowJointTrajectory, action_topic)
+        self.get_logger().info(f"Action client: {action_topic}")
+        self.get_logger().info(
+            f"起動から {self.startup_delay:.0f} 秒待機後にシーケンスを開始します"
+        )
+
+        # オーケストレーションはバックグラウンドスレッドで実行
+        # （Executor を塞がないため、ROS 2 のコールバックは並行して捌ける）
+        self._thread = threading.Thread(target=self._orchestrate, daemon=True)
+        self._thread.start()
+
+    def _orchestrate(self):
+        time.sleep(self.startup_delay)
+
+        if not self.client.wait_for_server(timeout_sec=10.0):
+            self.get_logger().error(
+                "Action server に接続できませんでした。controllers の起動を確認してください"
+            )
             return
 
-        target = COMPONENTS[self.index]
-        self.get_logger().info(
-            f"[{self.index + 1}/{len(COMPONENTS)}] {target['name']} 部品を把持 → トレーへ配置"
-        )
-        self._move_to(target["pick"])
-        self._close_gripper()
-        self._move_to(target["place"])
-        self._open_gripper()
-        self.index += 1
+        self.get_logger().info("Pick & Place シーケンス開始")
+        self._send(HOME, label="home (起点)")
 
-    def _move_to(self, xyz):
-        # NOTE: 実装時は MoveIt 2 (moveit_msgs/MoveGroup) で IK 解いて軌道送信
-        pose = Pose()
-        pose.position.x, pose.position.y, pose.position.z = xyz
-        self.get_logger().info(f"  → {xyz} へ移動指令（MoveIt 2 統合 TODO）")
+        for name in ["red", "blue", "green"]:
+            pre = _lift_offset(PICK_POSES[name])
+            self._send(pre, label=f"{name} 上方へ移動 (pre-pick)")
+            self._send(PICK_POSES[name], label=f"{name} を把持位置へ降下")
+            # gripper close 相当: ここではログのみ（gripper plugin 統合は v2 で）
+            self.get_logger().info(f"  ✦ {name} を把持（gripper close 相当）")
+            self._send(pre, label=f"{name} を持ち上げ")
 
-    def _close_gripper(self):
-        self.get_logger().info("  → グリッパ把持（GripperCommand TODO）")
+            pre_place = _lift_offset(PLACE_POSES[name])
+            self._send(pre_place, label=f"{name} をトレー上方へ移動")
+            self._send(PLACE_POSES[name], label=f"{name} をトレーに降下")
+            self.get_logger().info(f"  ✦ {name} を配置（gripper open 相当）")
+            self._send(pre_place, label=f"{name} 配置後に上昇")
 
-    def _open_gripper(self):
-        self.get_logger().info("  → グリッパ開放（GripperCommand TODO）")
+        self._send(HOME, label="home (終端)")
+        self.get_logger().info("Pick & Place シーケンス完了")
+
+    def _send(self, joint_positions, label=""):
+        traj = JointTrajectory()
+        traj.joint_names = UR5E_JOINTS
+
+        point = JointTrajectoryPoint()
+        point.positions = joint_positions
+        sec = int(self.step_duration)
+        nsec = int((self.step_duration - sec) * 1e9)
+        point.time_from_start = Duration(sec=sec, nanosec=nsec)
+        traj.points = [point]
+
+        goal = FollowJointTrajectory.Goal()
+        goal.trajectory = traj
+
+        if label:
+            self.get_logger().info(f"→ {label}")
+        # Fire-and-forget: 軌道の time_from_start でコントローラが動作完了タイミングを管理する
+        # 結果取得を待たず、step_duration + 余裕分だけ Python 側で wait
+        self.client.send_goal_async(goal)
+        time.sleep(self.step_duration + 0.3)
 
 
 def main(args=None):
