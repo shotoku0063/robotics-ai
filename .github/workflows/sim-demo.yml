@@ -71,8 +71,11 @@ jobs:
             robotics-ai-sim:ci \
             bash -c "source /opt/ros/humble/setup.bash && \
                      cd ros2_ws && \
-                     colcon build --symlink-install \
-                       --packages-select sim_demo ur_simulation_gazebo"
+                     colcon build \
+                       --packages-select sim_demo ur_simulation_gazebo && \
+                     echo '--- install tree ---' && \
+                     find install/sim_demo -maxdepth 4 -type f -o -type l 2>/dev/null | head -30 && \
+                     ls -la install/sim_demo/lib/sim_demo 2>&1 || true"
 
       - name: Run headless simulation and record video
         run: |
