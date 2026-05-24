@@ -30,11 +30,9 @@
         <always_on>1</always_on>
         <visualize>0</visualize>
         <plugin name="camera_controller" filename="libgazebo_ros_camera.so">
-          <ros>
-            <remapping>~/image_raw:=/camera/image_raw</remapping>
-            <remapping>~/camera_info:=/camera/camera_info</remapping>
-          </ros>
-          <camera_name>overhead_cam</camera_name>
+          <!-- camera_name=camera にして直接 /camera/image_raw に publish させる
+               （remapping が効きにくい SDF プラグインの仕様回避） -->
+          <camera_name>camera</camera_name>
           <frame_name>overhead_cam_link</frame_name>
         </plugin>
       </sensor>
