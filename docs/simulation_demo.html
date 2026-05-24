@@ -1,0 +1,880 @@
+<!DOCTYPE html>
+<!--
+====================================================================
+  ACCENTURE-STYLE CONSULTING SLIDE TEMPLATE
+====================================================================
+  使い方:
+    1. このファイルを docs/<your_doc>.html にコピー
+    2. <title> と Slide 1 のタイトル・サブタイトル・バッジを更新
+    3. Slide 2-5 を内容に合わせて差し替え（パターンは下記参照）
+    4. ブラウザで開く（追加依存なし、単一HTML）
+
+  デザイン原則:
+    - フォントは sans-serif (Segoe UI / Helvetica Neue) のみ、Georgia 禁止
+    - フォントサイズは 4階層: 10px ラベル / 13px 本文 / 17px カード名 / 30-56px ヒーロー
+    - 余白は装飾図形で埋めず白背景のまま尊重する
+    - ヘッドラインは必ず先頭に ">" マーク（CSS で自動付与）
+    - カラー: --blue (#A100FF 紫), --gold (#FF50A0 ピンク), --dark (#000 黒)
+
+  レイアウトパターン (再利用可):
+    [P1: Title]    ダーク背景 + 巨大タイトル + バッジ列 (s1-*)
+    [P2: 3-col]    Problem/Solution/Outcome 3カラム + 下段4カード (ov-*, tc-*)
+    [P3: Sections] A/B/C セクションバッジ + アーキ層カード + フロー図 (section-head, arch-*, flow-*)
+    [P4: Pipeline] 横並び 3ステップ + 矢印 + ヒーロー統計 (cicd-*, stat-*)
+    [P5: 2-col]    左右2カラム = コマンド列 + ロードマップ (cmd-*, phase, ph-*)
+====================================================================
+-->
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>UR5e Simulation — Semiconductor Pick &amp; Place</title>
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --blue:      #A100FF;   /* Accenture Purple */
+      --dark:      #000000;   /* Pure Black */
+      --bg:        #f5f5f7;
+      --gray:      #8c8c93;
+      --gold:      #FF50A0;   /* Accenture Pink/Coral */
+      --white:     #ffffff;
+      --green:     #2EBE89;
+      --red:       #FF4E4E;
+      --blue-lt:   #F5EAFF;   /* Light Purple */
+      --gold-lt:   #FFE6F0;   /* Light Pink */
+      --green-lt:  #E8FAF2;
+    }
+
+    body {
+      font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+      background: #000;
+      overflow: hidden;
+      width: 100vw; height: 100vh;
+    }
+
+    #deck { position: relative; width: 100vw; height: 100vh; }
+
+    /* ── Slides ── */
+    .slide {
+      position: absolute; inset: 0;
+      opacity: 0; pointer-events: none;
+      transition: opacity 0.4s ease;
+      background: var(--white);
+      display: flex; flex-direction: column;
+    }
+    .slide.active { opacity: 1; pointer-events: all; }
+
+    /* ── Progress bar ── */
+    #prog {
+      position: fixed; top: 0; left: 0;
+      height: 3px; background: var(--gold);
+      transition: width 0.4s ease; z-index: 100;
+    }
+
+    /* ── Nav ── */
+    .nav {
+      position: fixed; bottom: 20px; left: 50%;
+      transform: translateX(-50%);
+      display: flex; align-items: center; gap: 16px;
+      background: rgba(0,0,0,0.65);
+      padding: 8px 24px; border-radius: 28px;
+      backdrop-filter: blur(8px); z-index: 100;
+    }
+    .nav button {
+      background: none; border: none; color: #fff;
+      font-size: 18px; cursor: pointer;
+      padding: 4px 10px; border-radius: 4px;
+      transition: background .2s;
+    }
+    .nav button:hover { background: rgba(255,255,255,.2); }
+    .nav button:disabled { opacity: .3; cursor: default; }
+    .nav span { color: #fff; font-size: 13px; min-width: 44px; text-align: center; }
+
+    /* ── Shared slide parts ── */
+    .slide-head {
+      flex-shrink: 0;
+      padding: 12px 48px 0;
+    }
+    .tag {
+      font-size: 10px; font-weight: 700;
+      letter-spacing: 2px; text-transform: uppercase;
+      color: var(--blue); margin-bottom: 3px;
+    }
+    .headline {
+      font-family: inherit;
+      font-size: 24px; font-weight: 800;
+      color: var(--dark); line-height: 1.2;
+      letter-spacing: -0.3px;
+      padding-left: 0;
+      margin-bottom: 8px;
+    }
+    .headline::before {
+      content: ">"; color: var(--blue);
+      font-weight: 800; margin-right: 10px;
+      display: inline-block;
+    }
+    .slide-body {
+      flex: 1; min-height: 0;
+      padding: 0 48px 4px;
+      overflow: hidden;
+    }
+    .slide-foot {
+      flex-shrink: 0;
+      padding: 6px 48px 14px;
+      display: flex; align-items: center;
+      gap: 14px;
+      border-top: 1px solid #ececec;
+    }
+    .takeaway-label {
+      font-size: 9px; font-weight: 700;
+      letter-spacing: 1.5px; text-transform: uppercase;
+      color: var(--blue); white-space: nowrap;
+    }
+    .takeaway-text { font-size: 12px; color: var(--dark); line-height: 1.4; }
+    .slide-num { margin-left: auto; font-size: 11px; color: var(--gray); white-space: nowrap; }
+
+    /* ── Code block ── */
+    pre, .code {
+      background: var(--dark);
+      color: #a8d8a8;
+      font-family: 'Courier New', monospace;
+      font-size: 11px; line-height: 1.7;
+      padding: 10px 14px; border-radius: 3px;
+    }
+    .kw   { color: #c792ea; }
+    .str  { color: #c3e88d; }
+    .cmt  { color: #546e7a; font-style: italic; }
+    .dir  { color: #89ddff; }
+    .prompt { color: var(--gold); }
+
+    /* =============================================
+       SLIDE 1 — TITLE
+    ============================================= */
+    .s1 { background: var(--dark); }
+    .s1-body {
+      flex: 1; display: flex; flex-direction: column;
+      justify-content: center; padding: 0 80px;
+      position: relative; overflow: hidden;
+    }
+    .s1-ring {
+      position: absolute; border-radius: 50%;
+      pointer-events: none;
+    }
+    .s1-r1 { right: -60px; top: 50%; transform: translateY(-50%); width: 500px; height: 500px; border: 75px solid rgba(161, 0, 255, .22); }
+    .s1-r2 { right: 120px; top: 50%; transform: translateY(-50%); width: 270px; height: 270px; border: 40px solid rgba(255, 80, 160, .16); }
+    .s1-bar { width: 96px; height: 6px; background: linear-gradient(90deg, var(--blue) 0%, var(--gold) 100%); margin-bottom: 28px; }
+    .s1-title { font-family: inherit; font-size: 56px; font-weight: 800; color: #fff; line-height: 1.05; letter-spacing: -1px; margin-bottom: 14px; }
+    .s1-sub   { font-size: 19px; color: var(--gray); margin-bottom: 36px; }
+    .s1-badges { display: flex; gap: 8px; flex-wrap: wrap; }
+    .s1-badge { padding: 5px 13px; border: 1px solid rgba(255,255,255,.2); color: rgba(255,255,255,.6); font-size: 12px; border-radius: 3px; }
+    .s1-url { position: absolute; bottom: 32px; right: 80px; font-size: 11px; color: rgba(255,255,255,.3); }
+
+    /* =============================================
+       SLIDE 2 — OVERVIEW + TECH STACK
+    ============================================= */
+    .s2-body {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    /* Problem / Solution / Outcome */
+    .ov-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; align-items: start; }
+    .ov-col { padding: 12px 14px; display: flex; flex-direction: column; }
+    .ov-col.pr { background: #FFF0F0; border-top: 3px solid var(--red); }
+    .ov-col.so { background: var(--blue-lt); border-top: 3px solid var(--blue); }
+    .ov-col.ou { background: var(--green-lt); border-top: 3px solid var(--green); }
+    .ov-badge { font-size: 9px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 4px; }
+    .pr .ov-badge { color: var(--red); }
+    .so .ov-badge { color: var(--blue); }
+    .ou .ov-badge { color: var(--green); }
+    .ov-title { font-family: inherit; font-size: 15px; font-weight: 700; color: var(--dark); margin-bottom: 8px; }
+    .ov-list { list-style: none; font-size: 13px; color: #444; line-height: 1.8; }
+    .ov-list li::before { content: "› "; color: var(--blue); font-weight: 700; }
+    /* Tech cards */
+    .tech-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+    .tc {
+      background: var(--bg);
+      border-top: 3px solid var(--blue);
+      padding: 12px 14px;
+    }
+    .tc:nth-child(2) { border-top-color: #ee4c2c; }
+    .tc:nth-child(3) { border-top-color: #5d8233; }
+    .tc:nth-child(4) { border-top-color: #2496ed; }
+    .tc-head { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+    .tc-icon { font-size: 20px; }
+    .tc-name { font-family: inherit; font-size: 14px; font-weight: 700; color: var(--dark); }
+    .tc-ver  { font-size: 10px; font-weight: 700; color: var(--blue); }
+    .tc:nth-child(2) .tc-ver { color: #ee4c2c; }
+    .tc:nth-child(3) .tc-ver { color: #5d8233; }
+    .tc:nth-child(4) .tc-ver { color: #2496ed; }
+    .tc-points { list-style: none; font-size: 13px; color: #555; line-height: 1.75; }
+    .tc-points li::before { content: "· "; }
+
+    /* =============================================
+       SLIDE 3 — ARCHITECTURE + DEV ENV
+    ============================================= */
+    .s3-body {
+      display: grid;
+      grid-template-rows: auto 1fr;
+      gap: 14px;
+      height: 100%;
+    }
+    .s3-section { display: flex; flex-direction: column; min-height: 0; }
+    .s3-bottom-row {
+      display: grid; grid-template-columns: 1.4fr 1fr;
+      gap: 16px; min-height: 0;
+    }
+    /* Architecture row (horizontal 3 cards) */
+    .arch-row {
+      display: grid; grid-template-columns: 1fr 1fr 1fr;
+      gap: 8px;
+    }
+    /* Data flow */
+    .flow-diagram {
+      display: flex; align-items: flex-start; gap: 0;
+    }
+    .flow-node {
+      flex: 1; padding: 12px 12px 12px;
+      background: var(--bg);
+      border-top: 3px solid var(--blue);
+      display: flex; flex-direction: column; gap: 6px;
+    }
+    .flow-node:nth-child(3) { border-top-color: var(--gold); }
+    .flow-node:nth-child(5) { border-top-color: var(--green); }
+    .flow-node:nth-child(7) { border-top-color: var(--red); }
+    .flow-arrow {
+      display: flex; align-items: center;
+      padding: 0 5px; color: var(--gray); font-size: 20px;
+    }
+    .flow-node-name { font-weight: 700; font-size: 14px; color: var(--dark); }
+    .flow-node-topic { font-family: 'Courier New', monospace; font-size: 11px; color: var(--blue); line-height: 1.4; word-break: break-all; }
+    .flow-node-detail { font-size: 12px; color: #555; line-height: 1.6; }
+    /* Docker steps — vertical stack */
+    .dev-steps-v {
+      display: flex; flex-direction: column;
+      gap: 8px;
+    }
+    .dev-step-v {
+      background: var(--bg);
+      border-left: 5px solid var(--blue);
+      padding: 10px 14px;
+      display: flex; gap: 14px; align-items: center;
+    }
+    .dev-step-v:nth-child(2) { border-left-color: var(--gold); }
+    .dev-step-v:nth-child(3) { border-left-color: var(--green); }
+    .dev-step-vn {
+      font-family: inherit; font-size: 38px; font-weight: 800;
+      color: var(--blue); line-height: 1; min-width: 30px;
+      letter-spacing: -1px;
+    }
+    .dev-step-v:nth-child(2) .dev-step-vn { color: #C2185B; }
+    .dev-step-v:nth-child(3) .dev-step-vn { color: #1a8a5a; }
+    .dev-step-vbody { flex: 1; }
+    .dev-step-vlabel { font-size: 14px; font-weight: 700; color: var(--dark); margin-bottom: 3px; }
+    .dev-step-vdesc { font-size: 12.5px; color: #555; line-height: 1.6; }
+
+    /* =============================================
+       SLIDE 4 — CI/CD + TESTING
+    ============================================= */
+    .s4-body { display: flex; flex-direction: column; gap: 16px; }
+    /* Generic section header (shared with Slide 3) */
+    .section-head {
+      display: flex; align-items: center; gap: 10px;
+      padding: 0 0 8px; margin-bottom: 10px;
+      border-bottom: 2px solid var(--blue-lt);
+    }
+    .sec-letter {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 24px; height: 24px;
+      background: var(--blue); color: white;
+      font-family: inherit; font-size: 14px; font-weight: 700;
+      border-radius: 2px;
+    }
+    .sec-letter.tone-gold  { background: var(--gold); color: var(--dark); }
+    .sec-letter.tone-green { background: var(--green); }
+    .sec-title {
+      font-size: 13px; font-weight: 700; letter-spacing: 1.5px;
+      text-transform: uppercase; color: var(--dark);
+    }
+    /* CI/CD jobs (3 cards in a row) */
+    .cicd-row { display: grid; grid-template-columns: 1fr 18px 1fr 18px 1fr; align-items: stretch; }
+    .cicd-job { padding: 14px 16px; display: flex; flex-direction: column; }
+    .cicd-job.j1 { background: var(--gold-lt); border-top: 3px solid var(--gold); }
+    .cicd-job.j2 { background: var(--blue-lt); border-top: 3px solid var(--blue); }
+    .cicd-job.j3 { background: var(--green-lt); border-top: 3px solid var(--green); }
+    .cicd-sep { display: flex; align-items: center; justify-content: center; color: var(--gray); font-size: 20px; }
+    .cicd-tag { font-size: 10px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 4px; }
+    .j1 .cicd-tag { color: #C2185B; }
+    .j2 .cicd-tag { color: var(--blue); }
+    .j3 .cicd-tag { color: #1a8a5a; }
+    .cicd-name { font-family: inherit; font-size: 17px; font-weight: 700; color: var(--dark); margin-bottom: 10px; }
+    /* Test section (mock table + hero stats) */
+    .test-row {
+      display: grid;
+      grid-template-columns: 1.3fr 1fr;
+      gap: 16px; align-items: start;
+    }
+    .stats-area { display: flex; flex-direction: column; gap: 10px; }
+    .test-stats { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+    .stat {
+      padding: 14px 8px;
+      text-align: center; color: white;
+    }
+    .stat.s-blue  { background: var(--blue); }
+    .stat.s-green { background: var(--green); }
+    .stat.s-red   { background: var(--red); }
+    .stat-n { font-family: inherit; font-size: 32px; font-weight: 800; line-height: 1; letter-spacing: -0.5px; }
+    .stat-l { font-size: 11px; opacity: .9; margin-top: 4px; letter-spacing: 0.5px; }
+    .test-coverage {
+      font-size: 13px; color: #555; line-height: 1.7;
+      padding: 4px 2px;
+    }
+    .test-coverage strong { color: var(--dark); font-weight: 700; }
+
+    /* =============================================
+       SLIDE 5 — COMMANDS + ROADMAP
+    ============================================= */
+    .s5-body {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      align-items: start;
+    }
+    .cmd-section { display: flex; flex-direction: column; gap: 8px; }
+    .cmd-block { background: var(--bg); padding: 12px 14px; display: flex; flex-direction: column; }
+    .cmd-label { font-size: 11px; font-weight: 700; color: var(--dark); margin-bottom: 6px; }
+    .cmd-code {
+      background: var(--dark); color: #a8d8a8;
+      font-family: 'Courier New', monospace;
+      font-size: 11px; line-height: 1.75;
+      padding: 8px 12px; border-radius: 2px;
+    }
+    .roadmap { display: flex; flex-direction: column; gap: 8px; }
+    .phase { padding: 12px 14px; border-top: 3px solid var(--blue); background: var(--bg); display: flex; flex-direction: column; }
+    .phase:nth-child(2) { border-top-color: var(--gold); }
+    .phase:nth-child(3) { border-top-color: var(--green); }
+    .ph-badge { font-size: 9px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: var(--blue); margin-bottom: 3px; }
+    .phase:nth-child(2) .ph-badge { color: #C2185B; }
+    .phase:nth-child(3) .ph-badge { color: #1a8a5a; }
+    .ph-title { font-family: inherit; font-size: 15px; font-weight: 700; color: var(--dark); margin-bottom: 6px; }
+    .ph-items {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 0;
+      list-style: none; font-size: 11.5px; color: #444; line-height: 2;
+    }
+    .ph-items li::before { content: "□ "; color: var(--blue); }
+    .phase:nth-child(2) .ph-items li::before { color: #C2185B; }
+    .phase:nth-child(3) .ph-items li::before { color: #1a8a5a; }
+    .ph-tag {
+      display: inline-block; margin-top: 6px;
+      font-size: 10px; font-weight: 700;
+      padding: 3px 10px; background: rgba(161, 0, 255, .12); color: var(--blue);
+    }
+    .phase:nth-child(2) .ph-tag { background: rgba(255, 80, 160, .15); color: #C2185B; }
+    .phase:nth-child(3) .ph-tag { background: rgba(46, 190, 137, .18); color: #1a8a5a; }
+
+    /* ── 追加: コードブロック置換用スタイル ── */
+    /* Tech Bridge — 上段3カラムから下段Tech Stackへの「漏斗」ビジュアル */
+    .tech-bridge {
+      display: flex; align-items: center; justify-content: center;
+      gap: 14px; padding: 10px 24px 8px;
+      position: relative;
+    }
+    .tech-bridge::before, .tech-bridge::after {
+      content: ""; flex: 1; height: 2px;
+      background: linear-gradient(90deg, transparent 0%, var(--blue) 50%, transparent 100%);
+      opacity: .35;
+    }
+    .tb-arrow {
+      font-size: 13px; color: var(--gold); letter-spacing: 6px;
+    }
+    .tb-label {
+      font-size: 11.5px; font-weight: 700;
+      letter-spacing: 2px; color: var(--blue);
+      white-space: nowrap; text-transform: uppercase;
+    }
+    .tb-label strong { color: var(--dark); font-weight: 700; }
+    .cmd-desc { font-size: 13.5px; color: #555; line-height: 1.7; padding: 2px 0; }
+
+    /* ── Architecture layer cards (Slide 3 上段) ── */
+    .arch-layer {
+      padding: 12px 16px 14px;
+      display: flex; flex-direction: column; gap: 8px;
+    }
+    .arch-layer.al-ai    { background: var(--blue-lt); border-top: 4px solid var(--blue); }
+    .arch-layer.al-ros   { background: var(--gold-lt); border-top: 4px solid var(--gold); }
+    .arch-layer.al-infra { background: var(--green-lt); border-top: 4px solid var(--green); }
+    .al-badge {
+      font-size: 10px; font-weight: 700; letter-spacing: 2px;
+      text-transform: uppercase; margin-bottom: 0;
+    }
+    .al-ai .al-badge    { color: var(--blue); }
+    .al-ros .al-badge   { color: #C2185B; }
+    .al-infra .al-badge { color: #1a8a5a; }
+    .al-title { font-family: inherit; font-size: 17px; font-weight: 700; color: var(--dark); line-height: 1.3; }
+    .al-chips { display: flex; gap: 7px; flex-wrap: wrap; }
+    .al-chip {
+      display: flex; align-items: center; gap: 6px;
+      background: white; padding: 6px 13px;
+      font-size: 13.5px; font-weight: 600; color: var(--dark);
+      border-radius: 2px; box-shadow: 0 1px 3px rgba(0,0,0,.08);
+    }
+    .al-chip-icon { font-size: 15px; }
+    /* ── CI/CD short bullets ── */
+    .cicd-bullets { list-style: none; font-size: 13px; color: #444; line-height: 1.85; padding: 0; }
+    .cicd-bullets li { padding-left: 0; }
+    .cicd-bullets li::before { content: "▸  "; font-weight: 700; }
+    .j1 .cicd-bullets li::before { color: #C2185B; }
+    .j2 .cicd-bullets li::before { color: var(--blue); }
+    .j3 .cicd-bullets li::before { color: #1a8a5a; }
+    /* ── Mock table ── */
+    .mock-table { width: 100%; border-collapse: collapse; }
+    .mock-table th {
+      background: var(--dark); color: white;
+      padding: 8px 10px; text-align: left;
+      font-size: 10px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase;
+    }
+    .mock-table td { padding: 8px 10px; border-bottom: 1px solid #eaeaea; color: #444; vertical-align: middle; font-size: 13px; }
+    .mock-table tr:nth-child(even) td { background: var(--bg); }
+    .mock-lib { font-family: 'Courier New', monospace; font-weight: 700; color: var(--blue); font-size: 12px; }
+  </style>
+</head>
+<body>
+
+<div id="prog"></div>
+<div id="deck">
+
+  <!-- ===================================
+       SLIDE 1 — TITLE
+  =================================== -->
+  <div class="slide s1 active" data-i="1">
+    <div class="s1-body">
+      <div class="s1-ring s1-r1"></div>
+      <div class="s1-ring s1-r2"></div>
+      <div class="s1-bar"></div>
+      <div class="s1-title">UR5e<br>Simulation</div>
+      <div class="s1-sub">半導体オートメーション応用を見据えた Pick &amp; Place デモ ―― 実機なし・初期費用0円</div>
+      <div class="s1-badges">
+        <span class="s1-badge">UR5e (6DOF)</span>
+        <span class="s1-badge">Gazebo Sim</span>
+        <span class="s1-badge">MoveIt 2</span>
+        <span class="s1-badge">Headless Render</span>
+        <span class="s1-badge">FFmpeg → MP4</span>
+      </div>
+    </div>
+    <div class="s1-url">github.com/shotoku0063/robotics-ai/docs/simulation_demo</div>
+    <div class="nav" style="position:absolute;bottom:20px;left:50%;transform:translateX(-50%);display:none"></div>
+  </div>
+
+  <!-- ===================================
+       SLIDE 2 — OVERVIEW + TECH STACK
+  =================================== -->
+  <div class="slide" data-i="2">
+    <div class="slide-head">
+      <div class="tag">01 — Why Simulation</div>
+      <h2 class="headline">業界標準アームをコスト0円で動かす ―― シミュレーション戦略の正当性</h2>
+    </div>
+    <div class="slide-body">
+      <div class="s2-body">
+        <div class="ov-row">
+          <div class="ov-col pr">
+            <div class="ov-badge">⚠ Problem</div>
+            <div class="ov-title">実機導入の壁</div>
+            <ul class="ov-list">
+              <li>UR5e 本体 200〜300万円の初期費用</li>
+              <li>故障時の修理費・部品交換が高額</li>
+              <li>安全柵・架台等の周辺設備が必要</li>
+              <li>運搬・設置・キャリブレーションに数日</li>
+              <li>失敗を恐れアグレッシブな実験不可</li>
+            </ul>
+          </div>
+          <div class="ov-col so">
+            <div class="ov-badge">✦ Solution</div>
+            <div class="ov-title">Gazebo + UR5e フルシム環境</div>
+            <ul class="ov-list">
+              <li>UR 公式 URDF を Gazebo に投入（0円）</li>
+              <li>MoveIt 2 で逆運動学・軌道計画</li>
+              <li>カメラ画像を ROS 2 トピックで取得</li>
+              <li>ヘッドレス実行で Mac でも安定動作</li>
+              <li>FFmpeg で MP4 自動生成 → 共有可能</li>
+            </ul>
+          </div>
+          <div class="ov-col ou">
+            <div class="ov-badge">✓ Outcome</div>
+            <div class="ov-title">得られる検証結果</div>
+            <ul class="ov-list">
+              <li>Pick &amp; Place の成功率・所要時間</li>
+              <li>軌道計画ロジックの動作確認</li>
+              <li>Vision → Manipulation の連携検証</li>
+              <li>プレゼン用の説得力ある動画</li>
+              <li>実機導入時の即戦力スクリプト資産</li>
+            </ul>
+          </div>
+        </div>
+        <div class="tech-bridge">
+          <span class="tb-arrow">▼ ▼ ▼</span>
+          <span class="tb-label">これを実現する <strong>採用シミュレーション技術</strong></span>
+          <span class="tb-arrow">▼ ▼ ▼</span>
+        </div>
+        <div class="tech-row">
+          <div class="tc">
+            <div class="tc-head"><span class="tc-icon">🤖</span><div><div class="tc-name">UR5e</div><div class="tc-ver">6DOF / 業界標準</div></div></div>
+            <ul class="tc-points">
+              <li>Universal Robots 公式 URDF</li>
+              <li>半導体・電子部品ライン実利用機</li>
+              <li>可搬重量 5kg / リーチ 850mm</li>
+              <li>シム動作 = 実機転用可能</li>
+            </ul>
+          </div>
+          <div class="tc">
+            <div class="tc-head"><span class="tc-icon">🌍</span><div><div class="tc-name">Gazebo</div><div class="tc-ver">Classic / Sim</div></div></div>
+            <ul class="tc-points">
+              <li>ROS 2 公式シミュレーター</li>
+              <li>物理エンジン ODE / Bullet 内蔵</li>
+              <li>センサープラグイン豊富（Camera / IMU）</li>
+              <li>ヘッドレス動作で軽量実行</li>
+            </ul>
+          </div>
+          <div class="tc">
+            <div class="tc-head"><span class="tc-icon">🎯</span><div><div class="tc-name">MoveIt 2</div><div class="tc-ver">Humble 公式</div></div></div>
+            <ul class="tc-points">
+              <li>逆運動学ソルバー (KDL / TRAC-IK)</li>
+              <li>RRT 系経路計画 + 衝突検出</li>
+              <li>JointTrajectoryController 制御</li>
+              <li>RViz 2 で計画可視化</li>
+            </ul>
+          </div>
+          <div class="tc">
+            <div class="tc-head"><span class="tc-icon">🎬</span><div><div class="tc-name">FFmpeg</div><div class="tc-ver">image_transport 連動</div></div></div>
+            <ul class="tc-points">
+              <li>Gazebo カメラトピックを購読</li>
+              <li>BGR8 → MP4 ストリーミング変換</li>
+              <li>30fps / H.264 圧縮で軽量出力</li>
+              <li>CI で動画自動生成も可能</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="slide-foot">
+      <span class="takeaway-label">Key Takeaway</span>
+      <span class="takeaway-text">実機なし・追加投資 0円で <strong>「半導体組立風 Pick &amp; Place の動画」</strong>を生成できる構成 ―― 後の実機導入時に同コードが移植可能</span>
+      <span class="slide-num">2 / 5</span>
+    </div>
+  </div>
+
+  <!-- ===================================
+       SLIDE 3 — ARCHITECTURE + DEV ENV
+  =================================== -->
+  <div class="slide" data-i="3">
+    <div class="slide-head">
+      <div class="tag">02 — Simulation Architecture</div>
+      <h2 class="headline">シミュレーション3層構成 + データフロー + 動画生成パイプライン</h2>
+    </div>
+    <div class="slide-body">
+      <div class="s3-body">
+        <!-- SECTION A: Simulation 3-layer (full width, top) -->
+        <div class="s3-section s3-arch">
+          <div class="section-head">
+            <span class="sec-letter">A</span>
+            <span class="sec-title">シミュレーション3層 ―― 物理 / ROS 2 / 動画化</span>
+          </div>
+          <div class="arch-row">
+            <div class="arch-layer al-ai">
+              <div class="al-badge">物理シム層</div>
+              <div class="al-title">Gazebo + UR5e URDF</div>
+              <div class="al-chips">
+                <div class="al-chip"><span class="al-chip-icon">🌍</span>Gazebo</div>
+                <div class="al-chip"><span class="al-chip-icon">📐</span>UR5e</div>
+              </div>
+            </div>
+            <div class="arch-layer al-ros">
+              <div class="al-badge">ROS 2 制御層</div>
+              <div class="al-title">Perception · MoveIt 2 · Control</div>
+              <div class="al-chips">
+                <div class="al-chip"><span class="al-chip-icon">👁️</span>Vision</div>
+                <div class="al-chip"><span class="al-chip-icon">🎯</span>MoveIt</div>
+              </div>
+            </div>
+            <div class="arch-layer al-infra">
+              <div class="al-badge">動画生成層</div>
+              <div class="al-title">FFmpeg · ヘッドレス出力</div>
+              <div class="al-chips">
+                <div class="al-chip"><span class="al-chip-icon">🎬</span>FFmpeg</div>
+                <div class="al-chip"><span class="al-chip-icon">📼</span>rosbag2</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <!-- BOTTOM ROW: Section B (Data Flow) + Section C (Docker) -->
+        <div class="s3-bottom-row">
+          <div class="s3-section s3-flow">
+            <div class="section-head">
+              <span class="sec-letter tone-gold">B</span>
+              <span class="sec-title">Data Flow ―― Pick &amp; Place 実行時</span>
+            </div>
+            <div class="flow-diagram">
+              <div class="flow-node">
+                <div class="flow-node-name">Gazebo Camera</div>
+                <div class="flow-node-topic">/camera/image_raw</div>
+                <div class="flow-node-detail">仮想カメラ<br>30 Hz, BGR8</div>
+              </div>
+              <div class="flow-arrow">→</div>
+              <div class="flow-node">
+                <div class="flow-node-name">Perception</div>
+                <div class="flow-node-topic">/perception/poses</div>
+                <div class="flow-node-detail">部品位置検出<br>geometry_msgs/PoseArray</div>
+              </div>
+              <div class="flow-arrow">→</div>
+              <div class="flow-node">
+                <div class="flow-node-name">MoveIt 2</div>
+                <div class="flow-node-topic">/move_group/plan</div>
+                <div class="flow-node-detail">逆運動学<br>軌道計画 + 衝突検出</div>
+              </div>
+              <div class="flow-arrow">→</div>
+              <div class="flow-node">
+                <div class="flow-node-name">Joint Ctrl</div>
+                <div class="flow-node-topic">/joint_trajectory</div>
+                <div class="flow-node-detail">6軸関節角<br>UR5e 駆動</div>
+              </div>
+            </div>
+          </div>
+          <div class="s3-section s3-dev">
+            <div class="section-head">
+              <span class="sec-letter tone-green">C</span>
+              <span class="sec-title">動画生成パイプライン ―― 3ステップ</span>
+            </div>
+            <div class="dev-steps-v">
+              <div class="dev-step-v">
+                <div class="dev-step-vn">1</div>
+                <div class="dev-step-vbody">
+                  <div class="dev-step-vlabel">ヘッドレス起動</div>
+                  <div class="dev-step-vdesc">Gazebo を GUI なしで起動、UR5e + ワールドを spawn</div>
+                </div>
+              </div>
+              <div class="dev-step-v">
+                <div class="dev-step-vn">2</div>
+                <div class="dev-step-vbody">
+                  <div class="dev-step-vlabel">画像ストリーム購読</div>
+                  <div class="dev-step-vdesc">仮想カメラトピックを Python ノードが BGR8 で受信</div>
+                </div>
+              </div>
+              <div class="dev-step-v">
+                <div class="dev-step-vn">3</div>
+                <div class="dev-step-vbody">
+                  <div class="dev-step-vlabel">FFmpeg で MP4 化</div>
+                  <div class="dev-step-vdesc">subprocess pipe で 30fps H.264 動画を生成・保存</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="slide-foot">
+      <span class="takeaway-label">Key Takeaway</span>
+      <span class="takeaway-text">仮想カメラの画像が <strong>そのまま MP4 に流れ込む</strong>設計 ―― GUI に依存せず Mac でも Linux でも CI でも同一動画生成</span>
+      <span class="slide-num">3 / 5</span>
+    </div>
+  </div>
+
+  <!-- ===================================
+       SLIDE 4 — CI/CD + TESTING
+  =================================== -->
+  <div class="slide" data-i="4">
+    <div class="slide-head">
+      <div class="tag">03 — Implementation Roadmap</div>
+      <h2 class="headline">半日で動く Pick &amp; Place デモ ―― 3フェーズ実装計画</h2>
+    </div>
+    <div class="slide-body">
+      <div class="s4-body">
+        <!-- SECTION A: 3-phase plan -->
+        <div>
+          <div class="section-head">
+            <span class="sec-letter">A</span>
+            <span class="sec-title">実装フェーズ ―― 環境構築から動画化まで</span>
+          </div>
+          <div class="cicd-row">
+            <div class="cicd-job j1">
+              <div class="cicd-tag">Phase 01 · ~1時間</div>
+              <div class="cicd-name">環境構築</div>
+              <ul class="cicd-bullets">
+                <li>Dockerfile.simulation 作成（MoveIt 2 + UR description 追加）</li>
+                <li>docker-compose に simulation プロファイル拡張</li>
+                <li>ワークスペースに sim_demo パッケージ雛形追加</li>
+              </ul>
+            </div>
+            <div class="cicd-sep">→</div>
+            <div class="cicd-job j2">
+              <div class="cicd-tag">Phase 02 · ~2時間</div>
+              <div class="cicd-name">Pick &amp; Place 実装</div>
+              <ul class="cicd-bullets">
+                <li>Gazebo world（作業台 + 部品 + 仮想カメラ）作成</li>
+                <li>launch ファイルで UR5e + MoveIt 2 + カメラ起動</li>
+                <li>Vision → IK → 把持シーケンス Python ノード</li>
+              </ul>
+            </div>
+            <div class="cicd-sep">→</div>
+            <div class="cicd-job j3">
+              <div class="cicd-tag">Phase 03 · ~1時間</div>
+              <div class="cicd-name">動画生成</div>
+              <ul class="cicd-bullets">
+                <li>ヘッドレス起動オプションを launch に追加</li>
+                <li>FFmpeg subprocess で画像 → MP4 変換ノード</li>
+                <li>record_demo.sh ですべて自動化（1コマンド実行）</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+        <!-- SECTION B: Demo metrics + scenario -->
+        <div>
+          <div class="section-head">
+            <span class="sec-letter tone-gold">B</span>
+            <span class="sec-title">デモシナリオ ―― 半導体ライン風 Pick &amp; Place</span>
+          </div>
+          <div class="test-row">
+            <table class="mock-table">
+              <thead>
+                <tr><th>シーン要素</th><th>表現</th><th>用途</th></tr>
+              </thead>
+              <tbody>
+                <tr><td class="mock-lib">作業台</td><td>1.0m × 0.6m の平面</td><td>UR5e ベース + 部品配置</td></tr>
+                <tr><td class="mock-lib">部品（3個）</td><td>赤・青・緑の小立方体</td><td>Vision 識別対象</td></tr>
+                <tr><td class="mock-lib">仮想カメラ</td><td>真上 1.5m / 1280×720</td><td>俯瞰画像で部品位置検出</td></tr>
+                <tr><td class="mock-lib">投入トレー</td><td>奥側の窪み</td><td>Place 目標座標</td></tr>
+                <tr><td class="mock-lib">UR5e + 簡易グリッパ</td><td>ROS 2 公式 URDF</td><td>逆運動学で把持</td></tr>
+                <tr><td class="mock-lib">出力動画</td><td>15〜30秒 / 30fps H.264</td><td>プレゼン共有用</td></tr>
+              </tbody>
+            </table>
+            <div class="stats-area">
+              <div class="test-stats">
+                <div class="stat s-blue"><div class="stat-n">3</div><div class="stat-l">把持タスク</div></div>
+                <div class="stat s-green"><div class="stat-n">30fps</div><div class="stat-l">録画レート</div></div>
+                <div class="stat s-red"><div class="stat-n">0円</div><div class="stat-l">初期費用</div></div>
+              </div>
+              <div class="test-coverage">
+                <strong>成功条件:</strong> 3個の部品を順次把持しトレーへ配置、全シーケンスが MP4 として記録される。実行時間は 15〜30秒目安
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="slide-foot">
+      <span class="takeaway-label">Key Takeaway</span>
+      <span class="takeaway-text">合計 <strong>~4時間</strong>で「業界標準アームが半導体組立風の Pick &amp; Place を実行する動画」が出来上がる ―― これを資料添付して投資判断材料に</span>
+      <span class="slide-num">4 / 5</span>
+    </div>
+  </div>
+
+  <!-- ===================================
+       SLIDE 5 — COMMANDS + ROADMAP
+  =================================== -->
+  <div class="slide" data-i="5">
+    <div class="slide-head">
+      <div class="tag">04 — Getting Started</div>
+      <h2 class="headline">起動コマンドと拡張ロードマップ ―― 1コマンドで動画生成</h2>
+    </div>
+    <div class="slide-body">
+      <div class="s5-body">
+        <!-- Commands (Left) -->
+        <div class="cmd-section">
+          <div class="cmd-block">
+            <div class="cmd-label">🔨 シミュレーションイメージビルド</div>
+            <div class="cmd-desc">docker compose --profile simulation build。MoveIt 2 + UR description を含む環境を1回構築（初回 10-15分）。</div>
+          </div>
+          <div class="cmd-block">
+            <div class="cmd-label">🎬 動画自動生成（メインユース）</div>
+            <div class="cmd-desc">./scripts/record_demo.sh 一発でヘッドレス Gazebo 起動 → Pick &amp; Place 実行 → output/demo.mp4 出力まで完結。</div>
+          </div>
+          <div class="cmd-block">
+            <div class="cmd-label">🖥 デバッグ用 GUI 起動（Linux のみ）</div>
+            <div class="cmd-desc">docker compose --profile simulation up gazebo で GUI 起動、RViz 2 で軌道計画を可視化しながら開発可能。</div>
+          </div>
+          <div class="cmd-block">
+            <div class="cmd-label">📊 結果確認</div>
+            <div class="cmd-desc">生成された MP4 を任意のプレーヤーで再生、ROS 2 ログは logs/ に保存。CI でも同じ動画が自動生成される。</div>
+          </div>
+        </div>
+        <!-- Extension Roadmap (Right) -->
+        <div class="roadmap">
+          <div class="phase">
+            <div class="ph-badge">v1 — 基本動作</div>
+            <div class="ph-title">Pick &amp; Place デモ完成</div>
+            <ul class="ph-items">
+              <li>UR5e Gazebo 起動</li>
+              <li>3部品の把持</li>
+              <li>MP4 出力</li>
+              <li>README 整備</li>
+            </ul>
+            <div class="ph-tag">本フェーズ</div>
+          </div>
+          <div class="phase">
+            <div class="ph-badge">v2 — 高度化</div>
+            <div class="ph-title">業界寄りシナリオ</div>
+            <ul class="ph-items">
+              <li>ベルトコンベア追加</li>
+              <li>不良品検出</li>
+              <li>多サイズ部品対応</li>
+              <li>把持失敗時リトライ</li>
+            </ul>
+            <div class="ph-tag">次フェーズ</div>
+          </div>
+          <div class="phase">
+            <div class="ph-badge">v3 — AI 統合</div>
+            <div class="ph-title">学習ベース把持</div>
+            <ul class="ph-items">
+              <li>把持位置推定モデル学習</li>
+              <li>強化学習エージェント</li>
+              <li>Domain Randomization</li>
+              <li>実機転用（Sim-to-Real）</li>
+            </ul>
+            <div class="ph-tag">将来</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="slide-foot">
+      <span class="takeaway-label">Key Takeaway</span>
+      <span class="takeaway-text">v1 で <strong>「動く動画」</strong>を作り、v2/v3 で半導体ライン特有の課題（高速・高精度・多品種）に拡張 ―― 同じコードベースで Sim-to-Real まで一気通貫</span>
+      <span class="slide-num">5 / 5</span>
+    </div>
+  </div>
+
+</div><!-- /#deck -->
+
+<div class="nav">
+  <button id="prev" disabled>&#8592;</button>
+  <span id="ctr">1 / 5</span>
+  <button id="next">&#8594;</button>
+</div>
+
+<script>
+  const slides = document.querySelectorAll('.slide');
+  const total  = slides.length;
+  let cur = 0;
+  const prev = document.getElementById('prev');
+  const next = document.getElementById('next');
+  const ctr  = document.getElementById('ctr');
+  const prog = document.getElementById('prog');
+
+  function go(n) {
+    slides[cur].classList.remove('active');
+    cur = Math.max(0, Math.min(total - 1, n));
+    slides[cur].classList.add('active');
+    ctr.textContent   = (cur + 1) + ' / ' + total;
+    prev.disabled     = cur === 0;
+    next.disabled     = cur === total - 1;
+    prog.style.width  = ((cur + 1) / total * 100) + '%';
+  }
+
+  prev.addEventListener('click', () => go(cur - 1));
+  next.addEventListener('click', () => go(cur + 1));
+  document.addEventListener('keydown', e => {
+    if (['ArrowRight','ArrowDown',' '].includes(e.key)) { e.preventDefault(); go(cur + 1); }
+    if (['ArrowLeft','ArrowUp'].includes(e.key))         { e.preventDefault(); go(cur - 1); }
+  });
+  prog.style.width = (1 / total * 100) + '%';
+</script>
+</body>
+</html>

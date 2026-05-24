@@ -1,0 +1,66 @@
+# =============================================================================
+# UR5e Pick & Place シミュレーション用 ROS 2 + Gazebo + MoveIt 2 環境
+# -----------------------------------------------------------------------------
+# 標準 Dockerfile との違い:
+#   - ros:humble-desktop ベース（Gazebo + RViz 2 同梱）
+#   - MoveIt 2 + ros2_control + Universal Robots driver を追加
+#   - FFmpeg 同梱（動画 MP4 出力用）
+#   - ヘッドレス実行対応（X11 不要、CI でも動く）
+# =============================================================================
+
+FROM osrf/ros:humble-desktop
+
+ENV DEBIAN_FRONTEND=noninteractive
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+ENV ROS_DISTRO=humble
+
+# シミュレーション関連の追加パッケージ
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3-pip \
+    python3-colcon-common-extensions \
+    ros-humble-cv-bridge \
+    ros-humble-image-transport \
+    ros-humble-sensor-msgs \
+    ros-humble-geometry-msgs \
+    ros-humble-nav-msgs \
+    ros-humble-moveit \
+    ros-humble-moveit-resources \
+    ros-humble-ros2-control \
+    ros-humble-ros2-controllers \
+    ros-humble-gazebo-ros-pkgs \
+    ros-humble-gazebo-ros2-control \
+    ros-humble-ur-description \
+    ros-humble-ur-moveit-config \
+    ros-humble-ur-robot-driver \
+    ros-humble-ur-simulation-gazebo \
+    ros-humble-joint-state-publisher \
+    ros-humble-joint-state-publisher-gui \
+    ros-humble-rqt-image-view \
+    ros-humble-image-tools \
+    libopencv-dev \
+    ffmpeg \
+    xvfb \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /workspace
+
+COPY requirements.txt .
+RUN pip3 install --no-cache-dir -r requirements.txt
+
+COPY ros2_ws/ /workspace/ros2_ws/
+
+SHELL ["/bin/bash", "-c"]
+RUN source /opt/ros/humble/setup.bash && \
+    cd /workspace/ros2_ws && \
+    colcon build --symlink-install || true
+
+RUN echo "source /opt/ros/humble/setup.bash" >> ~/.bashrc && \
+    echo "source /workspace/ros2_ws/install/setup.bash" >> ~/.bashrc && \
+    echo "export GAZEBO_PLUGIN_PATH=/opt/ros/humble/lib:\$GAZEBO_PLUGIN_PATH" >> ~/.bashrc
+
+# ヘッドレス実行用エントリーポイント
+COPY docker/entrypoint_sim.sh /entrypoint_sim.sh
+RUN chmod +x /entrypoint_sim.sh
+
+CMD ["/bin/bash"]

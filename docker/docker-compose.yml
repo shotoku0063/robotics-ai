@@ -33,6 +33,28 @@ services:
     profiles:
       - simulation
 
+  # UR5e Pick & Place シミュレーション（ヘッドレス + MP4 出力）
+  # 起動: docker compose --profile sim-demo up sim-demo
+  sim-demo:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.simulation
+    container_name: ur5e_sim_demo
+    network_mode: host
+    environment:
+      - ROS_DOMAIN_ID=0
+      - DISPLAY=:99
+      - QT_QPA_PLATFORM=offscreen
+    volumes:
+      - ..:/workspace
+      - ../output:/workspace/output  # MP4 出力先
+    entrypoint: ["/entrypoint_sim.sh"]
+    command: ["/bin/bash"]
+    stdin_open: true
+    tty: true
+    profiles:
+      - sim-demo
+
   # JetBot (Jetson Nano / Orin Nano) 実機検証用プロファイル
   # 起動: docker compose --profile jetson up robotics-ai-jetson
   robotics-ai-jetson:

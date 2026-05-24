@@ -52,3 +52,4 @@ data/processed/
 # Gazebo
 ~/.gazebo/
 /tmp/
+output/
