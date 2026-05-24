@@ -49,12 +49,9 @@ RUN pip3 install --no-cache-dir -r requirements.txt
 
 COPY ros2_ws/ /workspace/ros2_ws/
 
-# UR Gazebo Simulation をソースから clone（apt 配布なし）
-RUN cd /workspace/ros2_ws/src && \
-    git clone --depth 1 -b humble \
-      https://github.com/UniversalRobots/Universal_Robots_ROS2_Gazebo_Simulation.git \
-      ur_simulation_gazebo
-
+# Note: ur_simulation_gazebo は CI / record_demo.sh が事前に ros2_ws/src/ に
+# clone する想定（host bind mount で /workspace が上書きされるため、
+# イメージ内 clone は無意味になる）。COPY 時点で同梱されていれば build される。
 SHELL ["/bin/bash", "-c"]
 RUN source /opt/ros/humble/setup.bash && \
     cd /workspace/ros2_ws && \

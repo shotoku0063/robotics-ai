@@ -29,6 +29,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Vendor UR Gazebo Simulation source (no apt binary)
+        run: |
+          if [[ ! -d ros2_ws/src/ur_simulation_gazebo ]]; then
+            git clone --depth 1 -b humble \
+              https://github.com/UniversalRobots/Universal_Robots_ROS2_Gazebo_Simulation.git \
+              ros2_ws/src/ur_simulation_gazebo
+          fi
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -55,7 +63,7 @@ jobs:
           rm -rf /tmp/.buildx-cache-sim
           mv /tmp/.buildx-cache-sim-new /tmp/.buildx-cache-sim
 
-      - name: Build ROS 2 workspace
+      - name: Build ROS 2 workspace (sim_demo + ur_simulation_gazebo)
         run: |
           docker run --rm \
             -v ${{ github.workspace }}:/workspace \
@@ -63,7 +71,8 @@ jobs:
             robotics-ai-sim:ci \
             bash -c "source /opt/ros/humble/setup.bash && \
                      cd ros2_ws && \
-                     colcon build --symlink-install --packages-select sim_demo"
+                     colcon build --symlink-install \
+                       --packages-select sim_demo ur_simulation_gazebo"
 
       - name: Run headless simulation and record video
         run: |

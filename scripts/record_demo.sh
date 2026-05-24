@@ -12,12 +12,20 @@ cd "${ROOT_DIR}"
 
 mkdir -p output
 
+echo "==> [0/4] UR Gazebo Simulation ソースを vendor（apt 配布なしのため）..."
+if [[ ! -d ros2_ws/src/ur_simulation_gazebo ]]; then
+    git clone --depth 1 -b humble \
+        https://github.com/UniversalRobots/Universal_Robots_ROS2_Gazebo_Simulation.git \
+        ros2_ws/src/ur_simulation_gazebo
+fi
+
 echo "==> [1/4] Dockerイメージをビルド（初回のみ約10分）..."
 docker compose -f docker/docker-compose.yml --profile sim-demo build sim-demo
 
 echo "==> [2/4] コンテナ内でワークスペースをビルド..."
 docker compose -f docker/docker-compose.yml --profile sim-demo run --rm sim-demo \
-    bash -c "cd /workspace/ros2_ws && colcon build --symlink-install --packages-select sim_demo"
+    bash -c "cd /workspace/ros2_ws && \
+             colcon build --symlink-install --packages-select sim_demo ur_simulation_gazebo"
 
 echo "==> [3/4] シミュレーション起動 + 動画録画（約60秒）..."
 docker compose -f docker/docker-compose.yml --profile sim-demo run --rm sim-demo \

@@ -53,3 +53,6 @@ data/processed/
 ~/.gazebo/
 /tmp/
 output/
+
+# Vendored third-party ROS 2 sources (auto-cloned by CI / record_demo.sh)
+ros2_ws/src/ur_simulation_gazebo/
