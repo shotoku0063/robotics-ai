@@ -1,0 +1,56 @@
+# =============================================================================
+# Jetson Nano / Orin 用 ROS 2 Humble + PyTorch 統合イメージ
+# -----------------------------------------------------------------------------
+# ベースは dustynv/jetson-containers の ROS 2 Humble L4T イメージ。
+# JetPack 4.6.x（Nano）/ JetPack 5.x / 6.x（Orin Nano）両対応。
+# 標準 Dockerfile との違い:
+#   - aarch64 (ARM64) アーキテクチャ向け
+#   - PyTorch は JetPack バンドル版を流用（requirements.txt の torch 行は除外）
+#   - NVIDIA Container Toolkit 経由で GPU/カメラデバイスにアクセス
+# =============================================================================
+
+# JetPack のバージョンに合わせてベースを切り替える
+# - Jetson Nano (JetPack 4.6.x): dustynv/ros:humble-ros-base-l4t-r32.7.1
+# - Jetson Orin Nano (JetPack 5.x): dustynv/ros:humble-ros-base-l4t-r35.4.1
+# - Jetson Orin Nano (JetPack 6.x): dustynv/ros:humble-ros-base-l4t-r36.2.0
+ARG JETPACK_BASE=dustynv/ros:humble-ros-base-l4t-r35.4.1
+FROM ${JETPACK_BASE}
+
+ENV DEBIAN_FRONTEND=noninteractive
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+
+# Jetson に必要な追加パッケージ
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3-pip \
+    python3-colcon-common-extensions \
+    ros-humble-cv-bridge \
+    ros-humble-image-transport \
+    ros-humble-sensor-msgs \
+    ros-humble-geometry-msgs \
+    ros-humble-nav-msgs \
+    ros-humble-v4l2-camera \
+    libopencv-dev \
+    i2c-tools \
+    python3-smbus \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /workspace
+
+# PyTorch は JetPack バンドル版を使う（ベースイメージに含まれている）
+# requirements.txt から torch を除外してインストール
+COPY requirements.txt /tmp/requirements.txt
+RUN grep -v -E "^(torch|torchvision)" /tmp/requirements.txt > /tmp/requirements_jetson.txt && \
+    pip3 install --no-cache-dir -r /tmp/requirements_jetson.txt
+
+COPY ros2_ws/ /workspace/ros2_ws/
+
+SHELL ["/bin/bash", "-c"]
+RUN source /opt/ros/humble/setup.bash && \
+    cd /workspace/ros2_ws && \
+    colcon build --symlink-install
+
+RUN echo "source /opt/ros/humble/setup.bash" >> ~/.bashrc && \
+    echo "source /workspace/ros2_ws/install/setup.bash" >> ~/.bashrc
+
+CMD ["/bin/bash"]

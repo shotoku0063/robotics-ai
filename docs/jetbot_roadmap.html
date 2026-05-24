@@ -1,0 +1,880 @@
+<!DOCTYPE html>
+<!--
+====================================================================
+  ACCENTURE-STYLE CONSULTING SLIDE TEMPLATE
+====================================================================
+  使い方:
+    1. このファイルを docs/<your_doc>.html にコピー
+    2. <title> と Slide 1 のタイトル・サブタイトル・バッジを更新
+    3. Slide 2-5 を内容に合わせて差し替え（パターンは下記参照）
+    4. ブラウザで開く（追加依存なし、単一HTML）
+
+  デザイン原則:
+    - フォントは sans-serif (Segoe UI / Helvetica Neue) のみ、Georgia 禁止
+    - フォントサイズは 4階層: 10px ラベル / 13px 本文 / 17px カード名 / 30-56px ヒーロー
+    - 余白は装飾図形で埋めず白背景のまま尊重する
+    - ヘッドラインは必ず先頭に ">" マーク（CSS で自動付与）
+    - カラー: --blue (#A100FF 紫), --gold (#FF50A0 ピンク), --dark (#000 黒)
+
+  レイアウトパターン (再利用可):
+    [P1: Title]    ダーク背景 + 巨大タイトル + バッジ列 (s1-*)
+    [P2: 3-col]    Problem/Solution/Outcome 3カラム + 下段4カード (ov-*, tc-*)
+    [P3: Sections] A/B/C セクションバッジ + アーキ層カード + フロー図 (section-head, arch-*, flow-*)
+    [P4: Pipeline] 横並び 3ステップ + 矢印 + ヒーロー統計 (cicd-*, stat-*)
+    [P5: 2-col]    左右2カラム = コマンド列 + ロードマップ (cmd-*, phase, ph-*)
+====================================================================
+-->
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>JetBot Implementation Roadmap</title>
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --blue:      #A100FF;   /* Accenture Purple */
+      --dark:      #000000;   /* Pure Black */
+      --bg:        #f5f5f7;
+      --gray:      #8c8c93;
+      --gold:      #FF50A0;   /* Accenture Pink/Coral */
+      --white:     #ffffff;
+      --green:     #2EBE89;
+      --red:       #FF4E4E;
+      --blue-lt:   #F5EAFF;   /* Light Purple */
+      --gold-lt:   #FFE6F0;   /* Light Pink */
+      --green-lt:  #E8FAF2;
+    }
+
+    body {
+      font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+      background: #000;
+      overflow: hidden;
+      width: 100vw; height: 100vh;
+    }
+
+    #deck { position: relative; width: 100vw; height: 100vh; }
+
+    /* ── Slides ── */
+    .slide {
+      position: absolute; inset: 0;
+      opacity: 0; pointer-events: none;
+      transition: opacity 0.4s ease;
+      background: var(--white);
+      display: flex; flex-direction: column;
+    }
+    .slide.active { opacity: 1; pointer-events: all; }
+
+    /* ── Progress bar ── */
+    #prog {
+      position: fixed; top: 0; left: 0;
+      height: 3px; background: var(--gold);
+      transition: width 0.4s ease; z-index: 100;
+    }
+
+    /* ── Nav ── */
+    .nav {
+      position: fixed; bottom: 20px; left: 50%;
+      transform: translateX(-50%);
+      display: flex; align-items: center; gap: 16px;
+      background: rgba(0,0,0,0.65);
+      padding: 8px 24px; border-radius: 28px;
+      backdrop-filter: blur(8px); z-index: 100;
+    }
+    .nav button {
+      background: none; border: none; color: #fff;
+      font-size: 18px; cursor: pointer;
+      padding: 4px 10px; border-radius: 4px;
+      transition: background .2s;
+    }
+    .nav button:hover { background: rgba(255,255,255,.2); }
+    .nav button:disabled { opacity: .3; cursor: default; }
+    .nav span { color: #fff; font-size: 13px; min-width: 44px; text-align: center; }
+
+    /* ── Shared slide parts ── */
+    .slide-head {
+      flex-shrink: 0;
+      padding: 12px 48px 0;
+    }
+    .tag {
+      font-size: 10px; font-weight: 700;
+      letter-spacing: 2px; text-transform: uppercase;
+      color: var(--blue); margin-bottom: 3px;
+    }
+    .headline {
+      font-family: inherit;
+      font-size: 24px; font-weight: 800;
+      color: var(--dark); line-height: 1.2;
+      letter-spacing: -0.3px;
+      padding-left: 0;
+      margin-bottom: 8px;
+    }
+    .headline::before {
+      content: ">"; color: var(--blue);
+      font-weight: 800; margin-right: 10px;
+      display: inline-block;
+    }
+    .slide-body {
+      flex: 1; min-height: 0;
+      padding: 0 48px 4px;
+      overflow: hidden;
+    }
+    .slide-foot {
+      flex-shrink: 0;
+      padding: 6px 48px 14px;
+      display: flex; align-items: center;
+      gap: 14px;
+      border-top: 1px solid #ececec;
+    }
+    .takeaway-label {
+      font-size: 9px; font-weight: 700;
+      letter-spacing: 1.5px; text-transform: uppercase;
+      color: var(--blue); white-space: nowrap;
+    }
+    .takeaway-text { font-size: 12px; color: var(--dark); line-height: 1.4; }
+    .slide-num { margin-left: auto; font-size: 11px; color: var(--gray); white-space: nowrap; }
+
+    /* ── Code block ── */
+    pre, .code {
+      background: var(--dark);
+      color: #a8d8a8;
+      font-family: 'Courier New', monospace;
+      font-size: 11px; line-height: 1.7;
+      padding: 10px 14px; border-radius: 3px;
+    }
+    .kw   { color: #c792ea; }
+    .str  { color: #c3e88d; }
+    .cmt  { color: #546e7a; font-style: italic; }
+    .dir  { color: #89ddff; }
+    .prompt { color: var(--gold); }
+
+    /* =============================================
+       SLIDE 1 — TITLE
+    ============================================= */
+    .s1 { background: var(--dark); }
+    .s1-body {
+      flex: 1; display: flex; flex-direction: column;
+      justify-content: center; padding: 0 80px;
+      position: relative; overflow: hidden;
+    }
+    .s1-ring {
+      position: absolute; border-radius: 50%;
+      pointer-events: none;
+    }
+    .s1-r1 { right: -60px; top: 50%; transform: translateY(-50%); width: 500px; height: 500px; border: 75px solid rgba(161, 0, 255, .22); }
+    .s1-r2 { right: 120px; top: 50%; transform: translateY(-50%); width: 270px; height: 270px; border: 40px solid rgba(255, 80, 160, .16); }
+    .s1-bar { width: 96px; height: 6px; background: linear-gradient(90deg, var(--blue) 0%, var(--gold) 100%); margin-bottom: 28px; }
+    .s1-title { font-family: inherit; font-size: 56px; font-weight: 800; color: #fff; line-height: 1.05; letter-spacing: -1px; margin-bottom: 14px; }
+    .s1-sub   { font-size: 19px; color: var(--gray); margin-bottom: 36px; }
+    .s1-badges { display: flex; gap: 8px; flex-wrap: wrap; }
+    .s1-badge { padding: 5px 13px; border: 1px solid rgba(255,255,255,.2); color: rgba(255,255,255,.6); font-size: 12px; border-radius: 3px; }
+    .s1-url { position: absolute; bottom: 32px; right: 80px; font-size: 11px; color: rgba(255,255,255,.3); }
+
+    /* =============================================
+       SLIDE 2 — OVERVIEW + TECH STACK
+    ============================================= */
+    .s2-body {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    /* Problem / Solution / Outcome */
+    .ov-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; align-items: start; }
+    .ov-col { padding: 12px 14px; display: flex; flex-direction: column; }
+    .ov-col.pr { background: #FFF0F0; border-top: 3px solid var(--red); }
+    .ov-col.so { background: var(--blue-lt); border-top: 3px solid var(--blue); }
+    .ov-col.ou { background: var(--green-lt); border-top: 3px solid var(--green); }
+    .ov-badge { font-size: 9px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 4px; }
+    .pr .ov-badge { color: var(--red); }
+    .so .ov-badge { color: var(--blue); }
+    .ou .ov-badge { color: var(--green); }
+    .ov-title { font-family: inherit; font-size: 15px; font-weight: 700; color: var(--dark); margin-bottom: 8px; }
+    .ov-list { list-style: none; font-size: 13px; color: #444; line-height: 1.8; }
+    .ov-list li::before { content: "› "; color: var(--blue); font-weight: 700; }
+    /* Tech cards */
+    .tech-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+    .tc {
+      background: var(--bg);
+      border-top: 3px solid var(--blue);
+      padding: 12px 14px;
+    }
+    .tc:nth-child(2) { border-top-color: #ee4c2c; }
+    .tc:nth-child(3) { border-top-color: #5d8233; }
+    .tc:nth-child(4) { border-top-color: #2496ed; }
+    .tc-head { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+    .tc-icon { font-size: 20px; }
+    .tc-name { font-family: inherit; font-size: 14px; font-weight: 700; color: var(--dark); }
+    .tc-ver  { font-size: 10px; font-weight: 700; color: var(--blue); }
+    .tc:nth-child(2) .tc-ver { color: #ee4c2c; }
+    .tc:nth-child(3) .tc-ver { color: #5d8233; }
+    .tc:nth-child(4) .tc-ver { color: #2496ed; }
+    .tc-points { list-style: none; font-size: 13px; color: #555; line-height: 1.75; }
+    .tc-points li::before { content: "· "; }
+
+    /* =============================================
+       SLIDE 3 — ARCHITECTURE + DEV ENV
+    ============================================= */
+    .s3-body {
+      display: grid;
+      grid-template-rows: auto 1fr;
+      gap: 14px;
+      height: 100%;
+    }
+    .s3-section { display: flex; flex-direction: column; min-height: 0; }
+    .s3-bottom-row {
+      display: grid; grid-template-columns: 1.4fr 1fr;
+      gap: 16px; min-height: 0;
+    }
+    /* Architecture row (horizontal 3 cards) */
+    .arch-row {
+      display: grid; grid-template-columns: 1fr 1fr 1fr;
+      gap: 8px;
+    }
+    /* Data flow */
+    .flow-diagram {
+      display: flex; align-items: flex-start; gap: 0;
+    }
+    .flow-node {
+      flex: 1; padding: 12px 12px 12px;
+      background: var(--bg);
+      border-top: 3px solid var(--blue);
+      display: flex; flex-direction: column; gap: 6px;
+    }
+    .flow-node:nth-child(3) { border-top-color: var(--gold); }
+    .flow-node:nth-child(5) { border-top-color: var(--green); }
+    .flow-node:nth-child(7) { border-top-color: var(--red); }
+    .flow-arrow {
+      display: flex; align-items: center;
+      padding: 0 5px; color: var(--gray); font-size: 20px;
+    }
+    .flow-node-name { font-weight: 700; font-size: 14px; color: var(--dark); }
+    .flow-node-topic { font-family: 'Courier New', monospace; font-size: 11px; color: var(--blue); line-height: 1.4; word-break: break-all; }
+    .flow-node-detail { font-size: 12px; color: #555; line-height: 1.6; }
+    /* Docker steps — vertical stack */
+    .dev-steps-v {
+      display: flex; flex-direction: column;
+      gap: 8px;
+    }
+    .dev-step-v {
+      background: var(--bg);
+      border-left: 5px solid var(--blue);
+      padding: 10px 14px;
+      display: flex; gap: 14px; align-items: center;
+    }
+    .dev-step-v:nth-child(2) { border-left-color: var(--gold); }
+    .dev-step-v:nth-child(3) { border-left-color: var(--green); }
+    .dev-step-vn {
+      font-family: inherit; font-size: 38px; font-weight: 800;
+      color: var(--blue); line-height: 1; min-width: 30px;
+      letter-spacing: -1px;
+    }
+    .dev-step-v:nth-child(2) .dev-step-vn { color: #C2185B; }
+    .dev-step-v:nth-child(3) .dev-step-vn { color: #1a8a5a; }
+    .dev-step-vbody { flex: 1; }
+    .dev-step-vlabel { font-size: 14px; font-weight: 700; color: var(--dark); margin-bottom: 3px; }
+    .dev-step-vdesc { font-size: 12.5px; color: #555; line-height: 1.6; }
+
+    /* =============================================
+       SLIDE 4 — CI/CD + TESTING
+    ============================================= */
+    .s4-body { display: flex; flex-direction: column; gap: 16px; }
+    /* Generic section header (shared with Slide 3) */
+    .section-head {
+      display: flex; align-items: center; gap: 10px;
+      padding: 0 0 8px; margin-bottom: 10px;
+      border-bottom: 2px solid var(--blue-lt);
+    }
+    .sec-letter {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 24px; height: 24px;
+      background: var(--blue); color: white;
+      font-family: inherit; font-size: 14px; font-weight: 700;
+      border-radius: 2px;
+    }
+    .sec-letter.tone-gold  { background: var(--gold); color: var(--dark); }
+    .sec-letter.tone-green { background: var(--green); }
+    .sec-title {
+      font-size: 13px; font-weight: 700; letter-spacing: 1.5px;
+      text-transform: uppercase; color: var(--dark);
+    }
+    /* CI/CD jobs (3 cards in a row) */
+    .cicd-row { display: grid; grid-template-columns: 1fr 18px 1fr 18px 1fr; align-items: stretch; }
+    .cicd-job { padding: 14px 16px; display: flex; flex-direction: column; }
+    .cicd-job.j1 { background: var(--gold-lt); border-top: 3px solid var(--gold); }
+    .cicd-job.j2 { background: var(--blue-lt); border-top: 3px solid var(--blue); }
+    .cicd-job.j3 { background: var(--green-lt); border-top: 3px solid var(--green); }
+    .cicd-sep { display: flex; align-items: center; justify-content: center; color: var(--gray); font-size: 20px; }
+    .cicd-tag { font-size: 10px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 4px; }
+    .j1 .cicd-tag { color: #C2185B; }
+    .j2 .cicd-tag { color: var(--blue); }
+    .j3 .cicd-tag { color: #1a8a5a; }
+    .cicd-name { font-family: inherit; font-size: 17px; font-weight: 700; color: var(--dark); margin-bottom: 10px; }
+    /* Test section (mock table + hero stats) */
+    .test-row {
+      display: grid;
+      grid-template-columns: 1.3fr 1fr;
+      gap: 16px; align-items: start;
+    }
+    .stats-area { display: flex; flex-direction: column; gap: 10px; }
+    .test-stats { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+    .stat {
+      padding: 14px 8px;
+      text-align: center; color: white;
+    }
+    .stat.s-blue  { background: var(--blue); }
+    .stat.s-green { background: var(--green); }
+    .stat.s-red   { background: var(--red); }
+    .stat-n { font-family: inherit; font-size: 32px; font-weight: 800; line-height: 1; letter-spacing: -0.5px; }
+    .stat-l { font-size: 11px; opacity: .9; margin-top: 4px; letter-spacing: 0.5px; }
+    .test-coverage {
+      font-size: 13px; color: #555; line-height: 1.7;
+      padding: 4px 2px;
+    }
+    .test-coverage strong { color: var(--dark); font-weight: 700; }
+
+    /* =============================================
+       SLIDE 5 — COMMANDS + ROADMAP
+    ============================================= */
+    .s5-body {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      align-items: start;
+    }
+    .cmd-section { display: flex; flex-direction: column; gap: 8px; }
+    .cmd-block { background: var(--bg); padding: 12px 14px; display: flex; flex-direction: column; }
+    .cmd-label { font-size: 11px; font-weight: 700; color: var(--dark); margin-bottom: 6px; }
+    .cmd-code {
+      background: var(--dark); color: #a8d8a8;
+      font-family: 'Courier New', monospace;
+      font-size: 11px; line-height: 1.75;
+      padding: 8px 12px; border-radius: 2px;
+    }
+    .roadmap { display: flex; flex-direction: column; gap: 8px; }
+    .phase { padding: 12px 14px; border-top: 3px solid var(--blue); background: var(--bg); display: flex; flex-direction: column; }
+    .phase:nth-child(2) { border-top-color: var(--gold); }
+    .phase:nth-child(3) { border-top-color: var(--green); }
+    .ph-badge { font-size: 9px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: var(--blue); margin-bottom: 3px; }
+    .phase:nth-child(2) .ph-badge { color: #C2185B; }
+    .phase:nth-child(3) .ph-badge { color: #1a8a5a; }
+    .ph-title { font-family: inherit; font-size: 15px; font-weight: 700; color: var(--dark); margin-bottom: 6px; }
+    .ph-items {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 0;
+      list-style: none; font-size: 11.5px; color: #444; line-height: 2;
+    }
+    .ph-items li::before { content: "□ "; color: var(--blue); }
+    .phase:nth-child(2) .ph-items li::before { color: #C2185B; }
+    .phase:nth-child(3) .ph-items li::before { color: #1a8a5a; }
+    .ph-tag {
+      display: inline-block; margin-top: 6px;
+      font-size: 10px; font-weight: 700;
+      padding: 3px 10px; background: rgba(161, 0, 255, .12); color: var(--blue);
+    }
+    .phase:nth-child(2) .ph-tag { background: rgba(255, 80, 160, .15); color: #C2185B; }
+    .phase:nth-child(3) .ph-tag { background: rgba(46, 190, 137, .18); color: #1a8a5a; }
+
+    /* ── 追加: コードブロック置換用スタイル ── */
+    /* Tech Bridge — 上段3カラムから下段Tech Stackへの「漏斗」ビジュアル */
+    .tech-bridge {
+      display: flex; align-items: center; justify-content: center;
+      gap: 14px; padding: 10px 24px 8px;
+      position: relative;
+    }
+    .tech-bridge::before, .tech-bridge::after {
+      content: ""; flex: 1; height: 2px;
+      background: linear-gradient(90deg, transparent 0%, var(--blue) 50%, transparent 100%);
+      opacity: .35;
+    }
+    .tb-arrow {
+      font-size: 13px; color: var(--gold); letter-spacing: 6px;
+    }
+    .tb-label {
+      font-size: 11.5px; font-weight: 700;
+      letter-spacing: 2px; color: var(--blue);
+      white-space: nowrap; text-transform: uppercase;
+    }
+    .tb-label strong { color: var(--dark); font-weight: 700; }
+    .cmd-desc { font-size: 13.5px; color: #555; line-height: 1.7; padding: 2px 0; }
+
+    /* ── Architecture layer cards (Slide 3 上段) ── */
+    .arch-layer {
+      padding: 12px 16px 14px;
+      display: flex; flex-direction: column; gap: 8px;
+    }
+    .arch-layer.al-ai    { background: var(--blue-lt); border-top: 4px solid var(--blue); }
+    .arch-layer.al-ros   { background: var(--gold-lt); border-top: 4px solid var(--gold); }
+    .arch-layer.al-infra { background: var(--green-lt); border-top: 4px solid var(--green); }
+    .al-badge {
+      font-size: 10px; font-weight: 700; letter-spacing: 2px;
+      text-transform: uppercase; margin-bottom: 0;
+    }
+    .al-ai .al-badge    { color: var(--blue); }
+    .al-ros .al-badge   { color: #C2185B; }
+    .al-infra .al-badge { color: #1a8a5a; }
+    .al-title { font-family: inherit; font-size: 17px; font-weight: 700; color: var(--dark); line-height: 1.3; }
+    .al-chips { display: flex; gap: 7px; flex-wrap: wrap; }
+    .al-chip {
+      display: flex; align-items: center; gap: 6px;
+      background: white; padding: 6px 13px;
+      font-size: 13.5px; font-weight: 600; color: var(--dark);
+      border-radius: 2px; box-shadow: 0 1px 3px rgba(0,0,0,.08);
+    }
+    .al-chip-icon { font-size: 15px; }
+    /* ── CI/CD short bullets ── */
+    .cicd-bullets { list-style: none; font-size: 13px; color: #444; line-height: 1.85; padding: 0; }
+    .cicd-bullets li { padding-left: 0; }
+    .cicd-bullets li::before { content: "▸  "; font-weight: 700; }
+    .j1 .cicd-bullets li::before { color: #C2185B; }
+    .j2 .cicd-bullets li::before { color: var(--blue); }
+    .j3 .cicd-bullets li::before { color: #1a8a5a; }
+    /* ── Mock table ── */
+    .mock-table { width: 100%; border-collapse: collapse; }
+    .mock-table th {
+      background: var(--dark); color: white;
+      padding: 8px 10px; text-align: left;
+      font-size: 10px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase;
+    }
+    .mock-table td { padding: 8px 10px; border-bottom: 1px solid #eaeaea; color: #444; vertical-align: middle; font-size: 13px; }
+    .mock-table tr:nth-child(even) td { background: var(--bg); }
+    .mock-lib { font-family: 'Courier New', monospace; font-weight: 700; color: var(--blue); font-size: 12px; }
+  </style>
+</head>
+<body>
+
+<div id="prog"></div>
+<div id="deck">
+
+  <!-- ===================================
+       SLIDE 1 — TITLE
+  =================================== -->
+  <div class="slide s1 active" data-i="1">
+    <div class="s1-body">
+      <div class="s1-ring s1-r1"></div>
+      <div class="s1-ring s1-r2"></div>
+      <div class="s1-bar"></div>
+      <div class="s1-title">JetBot<br>Roadmap</div>
+      <div class="s1-sub">Jetson Nano × ROS 2 Humble × PyTorch ―― 実機検証への最短ルート</div>
+      <div class="s1-badges">
+        <span class="s1-badge">JetBot AI Kit</span>
+        <span class="s1-badge">Jetson Nano 4GB</span>
+        <span class="s1-badge">IMX219 Camera</span>
+        <span class="s1-badge">JetPack 4.6 / L4T R32</span>
+        <span class="s1-badge">Docker on Jetson</span>
+      </div>
+    </div>
+    <div class="s1-url">github.com/shotoku0063/robotics-ai/docs/jetbot_roadmap</div>
+    <div class="nav" style="position:absolute;bottom:20px;left:50%;transform:translateX(-50%);display:none"></div>
+  </div>
+
+  <!-- ===================================
+       SLIDE 2 — OVERVIEW + TECH STACK
+  =================================== -->
+  <div class="slide" data-i="2">
+    <div class="slide-head">
+      <div class="tag">01 — Why JetBot</div>
+      <h2 class="headline">シミュレーションから実機検証へ ―― JetBot を選定する理由</h2>
+    </div>
+    <div class="slide-body">
+      <div class="s2-body">
+        <div class="ov-row">
+          <div class="ov-col pr">
+            <div class="ov-badge">⚠ Problem</div>
+            <div class="ov-title">シミュレーション単独の限界</div>
+            <ul class="ov-list">
+              <li>カメラノイズ・露出変動が再現困難</li>
+              <li>推論レイテンシの実測値が取れない</li>
+              <li>GPU 発熱・電力制約の影響が不明</li>
+              <li>モーター摩擦・遅延が理想化される</li>
+              <li>統合系のリアル挙動が掴めない</li>
+            </ul>
+          </div>
+          <div class="ov-col so">
+            <div class="ov-badge">✦ Solution</div>
+            <div class="ov-title">JetBot による実機検証</div>
+            <ul class="ov-list">
+              <li>Jetson 内蔵 GPU で PyTorch 推論を実機実行</li>
+              <li>4万円台でビジョン AI 一通り検証可能</li>
+              <li>Differential drive のシンプル運動学</li>
+              <li>Docker でホスト OS と分離開発</li>
+              <li>本プロジェクトの ROS 2 ノードがほぼ流用</li>
+            </ul>
+          </div>
+          <div class="ov-col ou">
+            <div class="ov-badge">✓ Outcome</div>
+            <div class="ov-title">実機検証で得る知見</div>
+            <ul class="ov-list">
+              <li>推論レイテンシ・FPS の実数値</li>
+              <li>End-to-End 遅延（カメラ→検出→動作）</li>
+              <li>バッテリー駆動時の連続動作時間</li>
+              <li>学習済モデルの実機汎化性能</li>
+              <li>ROS 2 ノード単独差替えの実証</li>
+            </ul>
+          </div>
+        </div>
+        <div class="tech-bridge">
+          <span class="tb-arrow">▼ ▼ ▼</span>
+          <span class="tb-label">これを支える <strong>JetBot ハードウェア構成</strong></span>
+          <span class="tb-arrow">▼ ▼ ▼</span>
+        </div>
+        <div class="tech-row">
+          <div class="tc">
+            <div class="tc-head"><span class="tc-icon">🧠</span><div><div class="tc-name">Jetson Nano</div><div class="tc-ver">4GB / Maxwell 128コア</div></div></div>
+            <ul class="tc-points">
+              <li>CUDA / cuDNN / TensorRT 対応</li>
+              <li>JetPack 4.6.1 / Ubuntu 18.04</li>
+              <li>消費電力 5W / 10W 切替</li>
+              <li>4GB LPDDR4 共有メモリ</li>
+            </ul>
+          </div>
+          <div class="tc">
+            <div class="tc-head"><span class="tc-icon">📷</span><div><div class="tc-name">IMX219 Camera</div><div class="tc-ver">8MP / CSI-2 接続</div></div></div>
+            <ul class="tc-points">
+              <li>1280×720 @ 30fps 安定動作</li>
+              <li>CSI 経由で USB より低遅延</li>
+              <li>v4l2_camera で ROS 2 直接対応</li>
+              <li>FOV 約 77° の標準画角</li>
+            </ul>
+          </div>
+          <div class="tc">
+            <div class="tc-head"><span class="tc-icon">⚙️</span><div><div class="tc-name">Motor Driver</div><div class="tc-ver">TB6612FNG + PCA9685</div></div></div>
+            <ul class="tc-points">
+              <li>I2C 経由で PWM 制御</li>
+              <li>左右独立 DC モーター駆動</li>
+              <li>Differential drive 運動学</li>
+              <li>最大速度 約 0.5 m/s</li>
+            </ul>
+          </div>
+          <div class="tc">
+            <div class="tc-head"><span class="tc-icon">🔋</span><div><div class="tc-name">Battery</div><div class="tc-ver">18650 Li-Ion × 2</div></div></div>
+            <ul class="tc-points">
+              <li>3,000mAh / 7.4V 構成</li>
+              <li>連続動作 30〜60分</li>
+              <li>保護回路付き必須（安全要件）</li>
+              <li>USB-C 給電と切替可能</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="slide-foot">
+      <span class="takeaway-label">Key Takeaway</span>
+      <span class="takeaway-text">JetBot は <strong>「シミュレーションでは取れない実機メトリクス」を 4〜5万円・GPU 推論付きで検証できる</strong>最小構成</span>
+      <span class="slide-num">2 / 5</span>
+    </div>
+  </div>
+
+  <!-- ===================================
+       SLIDE 3 — ARCHITECTURE + DEV ENV
+  =================================== -->
+  <div class="slide" data-i="3">
+    <div class="slide-head">
+      <div class="tag">02 — System Architecture on JetBot</div>
+      <h2 class="headline">JetBot 上のレイヤー構成 ―― ハードウェア・ROS 2 フロー・Docker 起動</h2>
+    </div>
+    <div class="slide-body">
+      <div class="s3-body">
+        <!-- SECTION A: Hardware Stack (full width, top) -->
+        <div class="s3-section s3-arch">
+          <div class="section-head">
+            <span class="sec-letter">A</span>
+            <span class="sec-title">ハードウェアスタック ―― JetBot 物理構成</span>
+          </div>
+          <div class="arch-row">
+            <div class="arch-layer al-ai">
+              <div class="al-badge">演算層</div>
+              <div class="al-title">Jetson Nano (GPU 内蔵)</div>
+              <div class="al-chips">
+                <div class="al-chip"><span class="al-chip-icon">🧠</span>CUDA 推論</div>
+                <div class="al-chip"><span class="al-chip-icon">📦</span>Docker</div>
+              </div>
+            </div>
+            <div class="arch-layer al-ros">
+              <div class="al-badge">入出力層</div>
+              <div class="al-title">センサー & アクチュエータ</div>
+              <div class="al-chips">
+                <div class="al-chip"><span class="al-chip-icon">📷</span>IMX219</div>
+                <div class="al-chip"><span class="al-chip-icon">⚙️</span>Motor I2C</div>
+              </div>
+            </div>
+            <div class="arch-layer al-infra">
+              <div class="al-badge">電源 / 筐体層</div>
+              <div class="al-title">バッテリー · シャーシ</div>
+              <div class="al-chips">
+                <div class="al-chip"><span class="al-chip-icon">🔋</span>18650 ×2</div>
+                <div class="al-chip"><span class="al-chip-icon">🛠️</span>Chassis</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <!-- BOTTOM ROW: Section B (Data Flow) + Section C (Docker) -->
+        <div class="s3-bottom-row">
+          <div class="s3-section s3-flow">
+            <div class="section-head">
+              <span class="sec-letter tone-gold">B</span>
+              <span class="sec-title">Data Flow on JetBot ―― ハードウェア込みノード連携</span>
+            </div>
+            <div class="flow-diagram">
+              <div class="flow-node">
+                <div class="flow-node-name">IMX219</div>
+                <div class="flow-node-topic">v4l2_camera</div>
+                <div class="flow-node-detail">/dev/video0<br>30 Hz, BGR8</div>
+              </div>
+              <div class="flow-arrow">→</div>
+              <div class="flow-node">
+                <div class="flow-node-name">Perception</div>
+                <div class="flow-node-topic">/perception/detections</div>
+                <div class="flow-node-detail">PyTorch on CUDA<br>TensorRT 最適化可</div>
+              </div>
+              <div class="flow-arrow">→</div>
+              <div class="flow-node">
+                <div class="flow-node-name">Planning</div>
+                <div class="flow-node-topic">/planning/waypoints</div>
+                <div class="flow-node-detail">障害物回避<br>nav_msgs/Path</div>
+              </div>
+              <div class="flow-arrow">→</div>
+              <div class="flow-node">
+                <div class="flow-node-name">Motor I2C</div>
+                <div class="flow-node-topic">/cmd_vel → PWM</div>
+                <div class="flow-node-detail">PCA9685 経由<br>TB6612FNG 駆動</div>
+              </div>
+            </div>
+          </div>
+          <div class="s3-section s3-dev">
+            <div class="section-head">
+              <span class="sec-letter tone-green">C</span>
+              <span class="sec-title">Jetson 起動手順 ―― 3ステップ</span>
+            </div>
+            <div class="dev-steps-v">
+              <div class="dev-step-v">
+                <div class="dev-step-vn">1</div>
+                <div class="dev-step-vbody">
+                  <div class="dev-step-vlabel">JetPack 焼き込み</div>
+                  <div class="dev-step-vdesc">microSD に JetPack 4.6.1 を書き込み、初回ブートで Wi-Fi / SSH を設定</div>
+                </div>
+              </div>
+              <div class="dev-step-v">
+                <div class="dev-step-vn">2</div>
+                <div class="dev-step-vbody">
+                  <div class="dev-step-vlabel">Docker + NVIDIA Toolkit</div>
+                  <div class="dev-step-vdesc">nvidia-docker をインストールし GPU コンテナを動作可能に</div>
+                </div>
+              </div>
+              <div class="dev-step-v">
+                <div class="dev-step-vn">3</div>
+                <div class="dev-step-vbody">
+                  <div class="dev-step-vlabel">jetson プロファイル起動</div>
+                  <div class="dev-step-vdesc">docker compose --profile jetson up でビルド・起動・動作確認</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="slide-foot">
+      <span class="takeaway-label">Key Takeaway</span>
+      <span class="takeaway-text">既存 ROS 2 ノードはほぼ無変更で流用可能 ―― <strong>差分はベースイメージ・カメラ取得・モーター I2C 出力の3点だけ</strong></span>
+      <span class="slide-num">3 / 5</span>
+    </div>
+  </div>
+
+  <!-- ===================================
+       SLIDE 4 — CI/CD + TESTING
+  =================================== -->
+  <div class="slide" data-i="4">
+    <div class="slide-head">
+      <div class="tag">03 — Implementation Phases</div>
+      <h2 class="headline">5週間で実機検証完遂 ―― 段階的にリスクを上げる4フェーズ計画</h2>
+    </div>
+    <div class="slide-body">
+      <div class="s4-body">
+        <!-- SECTION A: 4-phase plan -->
+        <div>
+          <div class="section-head">
+            <span class="sec-letter">A</span>
+            <span class="sec-title">フェーズ計画 ―― 段階的にリスクを上げる</span>
+          </div>
+          <div class="cicd-row">
+            <div class="cicd-job j1">
+              <div class="cicd-tag">Phase 01 · Week 1-2</div>
+              <div class="cicd-name">環境準備</div>
+              <ul class="cicd-bullets">
+                <li>JetBot AI Kit 発注 → 組立</li>
+                <li>JetPack 4.6.1 焼き込み + SSH 設定</li>
+                <li>Docker + NVIDIA Toolkit セットアップ</li>
+              </ul>
+            </div>
+            <div class="cicd-sep">→</div>
+            <div class="cicd-job j2">
+              <div class="cicd-tag">Phase 02 · Week 3-4</div>
+              <div class="cicd-name">ノード単体動作</div>
+              <ul class="cicd-bullets">
+                <li>v4l2_camera で IMX219 を /image_raw 配信</li>
+                <li>Perception ノードを Jetson GPU で推論実行</li>
+                <li>モーター I2C ノードを新規追加</li>
+              </ul>
+            </div>
+            <div class="cicd-sep">→</div>
+            <div class="cicd-job j3">
+              <div class="cicd-tag">Phase 03 · Week 5</div>
+              <div class="cicd-name">統合 + 計測</div>
+              <ul class="cicd-bullets">
+                <li>End-to-End ループ動作 (rosbag 録画)</li>
+                <li>レイテンシ / FPS / 電池時間を測定</li>
+                <li>ベンチマーク結果を docs/ に記録</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+        <!-- SECTION B: Risk register + target metrics -->
+        <div>
+          <div class="section-head">
+            <span class="sec-letter tone-gold">B</span>
+            <span class="sec-title">リスク・目標指標 ―― 早期発見と数値ゲート</span>
+          </div>
+          <div class="test-row">
+            <table class="mock-table">
+              <thead>
+                <tr><th>リスク</th><th>影響</th><th>対策</th></tr>
+              </thead>
+              <tbody>
+                <tr><td class="mock-lib">Jetson Nano EOL</td><td>OS / JetPack 古い</td><td>Docker で Humble を抽象化</td></tr>
+                <tr><td class="mock-lib">PyTorch L4T 版差異</td><td>x86 と互換性なし</td><td>JetPack バンドル版を流用</td></tr>
+                <tr><td class="mock-lib">熱暴走 / Throttling</td><td>推論性能低下</td><td>5W/10W モード切替 + ヒートシンク</td></tr>
+                <tr><td class="mock-lib">バッテリー電圧降下</td><td>突然停止</td><td>電圧監視ノード + ローバッテリー停止</td></tr>
+                <tr><td class="mock-lib">I2C 通信失敗</td><td>モーター不動</td><td>i2cdetect で疎通先行確認</td></tr>
+                <tr><td class="mock-lib">SD カード書込破損</td><td>ブート不能</td><td>イメージ定期バックアップ</td></tr>
+              </tbody>
+            </table>
+            <div class="stats-area">
+              <div class="test-stats">
+                <div class="stat s-blue"><div class="stat-n">30+</div><div class="stat-l">FPS 推論</div></div>
+                <div class="stat s-green"><div class="stat-n">&lt;50ms</div><div class="stat-l">E2E 遅延</div></div>
+                <div class="stat s-red"><div class="stat-n">60min</div><div class="stat-l">連続動作</div></div>
+              </div>
+              <div class="test-coverage">
+                <strong>合格ライン:</strong> 物体検出が現実環境で 30FPS 以上、カメラ→/cmd_vel まで 50ms 未満、満充電で 60分連続動作の3条件を全て満たした時点で Phase 4（実環境運用）へ
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="slide-foot">
+      <span class="takeaway-label">Key Takeaway</span>
+      <span class="takeaway-text">各フェーズの完了条件を <strong>客観的な数値ゲート（FPS / 遅延 / 動作時間）</strong>で定義 ―― 次フェーズへの移行を主観でなく実測で判断</span>
+      <span class="slide-num">4 / 5</span>
+    </div>
+  </div>
+
+  <!-- ===================================
+       SLIDE 5 — COMMANDS + ROADMAP
+  =================================== -->
+  <div class="slide" data-i="5">
+    <div class="slide-head">
+      <div class="tag">04 — Procurement &amp; Next Actions</div>
+      <h2 class="headline">発注リストと初週アクション ―― 即着手のための具体タスク</h2>
+    </div>
+    <div class="slide-body">
+      <div class="s5-body">
+        <!-- Procurement (Left) -->
+        <div class="cmd-section">
+          <div class="cmd-block">
+            <div class="cmd-label">🛒 必須品（Phase 1 / 約 4〜5万円）</div>
+            <div class="cmd-desc">JetBot AI Kit (Nano 4GB 同梱版) + microSD 64GB + AC アダプタ + 18650 電池。詳細は docs/hardware.md を参照。</div>
+          </div>
+          <div class="cmd-block">
+            <div class="cmd-label">🛍 推奨追加品（Phase 2 / 約 1〜2万円）</div>
+            <div class="cmd-desc">HDMI モニター + キーボード（初期設定用、SSH 後不要）+ ジャンパーケーブル + 予備モバイルバッテリー。</div>
+          </div>
+          <div class="cmd-block">
+            <div class="cmd-label">🏬 推奨購入先</div>
+            <div class="cmd-desc">第一候補: Switch Science（日本語サポート・即納）/ 第二候補: Amazon JP（価格優先）。Yahboom 直送は2-4週間掛かるため非推奨。</div>
+          </div>
+          <div class="cmd-block">
+            <div class="cmd-label">⚠️ 発注前チェックリスト</div>
+            <div class="cmd-desc">Nano 4GB 同梱か / IMX219 カメラか / 18650 保護回路付きか / Wi-Fi モジュール同梱か ―― この4点を商品ページで必ず確認。</div>
+          </div>
+        </div>
+        <!-- Next Actions (Right) -->
+        <div class="roadmap">
+          <div class="phase">
+            <div class="ph-badge">Day 1 — 発注</div>
+            <div class="ph-title">本日着手</div>
+            <ul class="ph-items">
+              <li>docs/hardware.md 確認</li>
+              <li>発注先サイトで比較</li>
+              <li>カート登録 → 発注</li>
+              <li>納期確認・到着待ち</li>
+            </ul>
+            <div class="ph-tag">即日</div>
+          </div>
+          <div class="phase">
+            <div class="ph-badge">Week 1 — 到着後</div>
+            <div class="ph-title">組立 + OS</div>
+            <ul class="ph-items">
+              <li>キット組立（2〜3時間）</li>
+              <li>JetPack 焼き込み</li>
+              <li>SSH / Wi-Fi 設定</li>
+              <li>初回ブート確認</li>
+            </ul>
+            <div class="ph-tag">到着 +1日</div>
+          </div>
+          <div class="phase">
+            <div class="ph-badge">Week 2 — 統合</div>
+            <div class="ph-title">本プロジェクト統合</div>
+            <ul class="ph-items">
+              <li>nvidia-docker 導入</li>
+              <li>git clone + 環境準備</li>
+              <li>docker compose --profile jetson up</li>
+              <li>Perception ノード動作確認</li>
+            </ul>
+            <div class="ph-tag">第2週</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="slide-foot">
+      <span class="takeaway-label">Key Takeaway</span>
+      <span class="takeaway-text"><strong>本日発注 → 来週組立 → 第2週統合</strong> ―― 5万円・3週間で「実機 ROS 2 + GPU 推論」が起動する状態へ到達</span>
+      <span class="slide-num">5 / 5</span>
+    </div>
+  </div>
+
+</div><!-- /#deck -->
+
+<div class="nav">
+  <button id="prev" disabled>&#8592;</button>
+  <span id="ctr">1 / 5</span>
+  <button id="next">&#8594;</button>
+</div>
+
+<script>
+  const slides = document.querySelectorAll('.slide');
+  const total  = slides.length;
+  let cur = 0;
+  const prev = document.getElementById('prev');
+  const next = document.getElementById('next');
+  const ctr  = document.getElementById('ctr');
+  const prog = document.getElementById('prog');
+
+  function go(n) {
+    slides[cur].classList.remove('active');
+    cur = Math.max(0, Math.min(total - 1, n));
+    slides[cur].classList.add('active');
+    ctr.textContent   = (cur + 1) + ' / ' + total;
+    prev.disabled     = cur === 0;
+    next.disabled     = cur === total - 1;
+    prog.style.width  = ((cur + 1) / total * 100) + '%';
+  }
+
+  prev.addEventListener('click', () => go(cur - 1));
+  next.addEventListener('click', () => go(cur + 1));
+  document.addEventListener('keydown', e => {
+    if (['ArrowRight','ArrowDown',' '].includes(e.key)) { e.preventDefault(); go(cur + 1); }
+    if (['ArrowLeft','ArrowUp'].includes(e.key))         { e.preventDefault(); go(cur - 1); }
+  });
+  prog.style.width = (1 / total * 100) + '%';
+</script>
+</body>
+</html>

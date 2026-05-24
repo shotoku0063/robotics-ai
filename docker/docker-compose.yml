@@ -32,3 +32,32 @@ services:
     command: bash -c "source /opt/ros/humble/setup.bash && gazebo"
     profiles:
       - simulation
+
+  # JetBot (Jetson Nano / Orin Nano) 実機検証用プロファイル
+  # 起動: docker compose --profile jetson up robotics-ai-jetson
+  robotics-ai-jetson:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.jetson
+      args:
+        # JetPack バージョンに応じて切替（README 参照）
+        JETPACK_BASE: dustynv/ros:humble-ros-base-l4t-r35.4.1
+    container_name: robotics_ai_jetson
+    runtime: nvidia  # NVIDIA Container Toolkit 経由で GPU アクセス
+    network_mode: host
+    environment:
+      - ROS_DOMAIN_ID=0
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=all
+    volumes:
+      - ..:/workspace
+      - /dev:/dev  # I2C・GPIO・カメラへのアクセス
+    devices:
+      - /dev/video0:/dev/video0  # IMX219 カメラ (V4L2)
+      - /dev/i2c-1:/dev/i2c-1    # モーター制御 (PCA9685 等)
+    privileged: true  # GPIO 操作のため
+    stdin_open: true
+    tty: true
+    command: /bin/bash
+    profiles:
+      - jetson
