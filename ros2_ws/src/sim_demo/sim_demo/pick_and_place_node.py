@@ -67,7 +67,9 @@ class PickAndPlaceNode(Node):
         self.startup_delay = self.get_parameter("startup_delay_sec").value
         self.step_duration = self.get_parameter("step_duration_sec").value
 
-        action_topic = "/scaled_joint_trajectory_controller/follow_joint_trajectory"
+        # ur_simulation_gazebo は scaled_ 接頭辞なしの joint_trajectory_controller を spawn する
+        # （実機 ur_robot_driver は scaled_joint_trajectory_controller を使用）
+        action_topic = "/joint_trajectory_controller/follow_joint_trajectory"
         self.client = ActionClient(self, FollowJointTrajectory, action_topic)
         self.get_logger().info(f"Action client: {action_topic}")
         self.get_logger().info(

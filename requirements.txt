@@ -13,7 +13,8 @@ Pillow>=10.0.0
 # pygazebo  # Gazebo Python bindings (optional)
 
 # Scientific Computing
-numpy>=1.24.0
+# NumPy 2.x breaks ROS 2 Humble's cv_bridge ABI (_ARRAY_API not found)
+numpy>=1.24.0,<2.0
 scipy>=1.11.0
 matplotlib>=3.7.0
 

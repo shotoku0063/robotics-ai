@@ -1,35 +1,20 @@
 """UR5e Pick & Place デモ統合 launch ファイル.
 
-Gazebo (ヘッドレス) + UR5e + 俯瞰カメラ + 動画記録ノードを起動する。
+UR Gazebo Simulation launch を include し、その上に Pick & Place ノードと
+動画録画ノードを乗せる。Gazebo 自体は UR launch 内で起動するので二重起動しない。
 """
 
 from launch import LaunchDescription
-from launch.actions import IncludeLaunchDescription, ExecuteProcess, DeclareLaunchArgument
+from launch.actions import IncludeLaunchDescription
 from launch.launch_description_sources import PythonLaunchDescriptionSource
-from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
+from launch.substitutions import PathJoinSubstitution
 from launch_ros.actions import Node
 from launch_ros.substitutions import FindPackageShare
 
 
 def generate_launch_description():
-    headless = LaunchConfiguration("headless", default="true")
-    world_file = PathJoinSubstitution([
-        FindPackageShare("sim_demo"), "worlds", "semiconductor_workbench.world"
-    ])
-
-    gazebo = ExecuteProcess(
-        cmd=[
-            "gazebo",
-            "--verbose",
-            "-s", "libgazebo_ros_init.so",
-            "-s", "libgazebo_ros_factory.so",
-            world_file,
-        ],
-        additional_env={"GAZEBO_PLUGIN_PATH": "/opt/ros/humble/lib"},
-        output="screen",
-    )
-
-    # UR5e は ur_simulation_gazebo パッケージの公式 launch を流用
+    # UR5e + Gazebo + ros2_control は UR 公式 launch に任せる
+    # (前回 ExecuteProcess(gazebo) を独自に起動して port 11345 が衝突したため削除)
     ur_sim = IncludeLaunchDescription(
         PythonLaunchDescriptionSource([
             PathJoinSubstitution([
@@ -50,12 +35,14 @@ def generate_launch_description():
         name="pick_and_place_node",
         output="screen",
         parameters=[{
-            "startup_delay_sec": 12.0,   # Gazebo + コントローラ起動を待つ
+            "startup_delay_sec": 12.0,   # gzserver + コントローラ起動を待つ
             "step_duration_sec": 2.5,
         }],
     )
 
     # MP4 録画ノード（Pick & Place 約 50秒 + 余裕 5秒 = 55秒）
+    # UR の default world はカメラなしなので、現状は黒画面の動画が出る。
+    # セマンティックな世界はあとで spawn_entity で個別に追加する予定。
     recorder = Node(
         package="sim_demo",
         executable="video_recorder",
@@ -69,8 +56,6 @@ def generate_launch_description():
     )
 
     return LaunchDescription([
-        DeclareLaunchArgument("headless", default_value="true"),
-        gazebo,
         ur_sim,
         pick_place,
         recorder,
