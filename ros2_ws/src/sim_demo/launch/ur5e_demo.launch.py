@@ -1,11 +1,12 @@
 """UR5e Pick & Place デモ統合 launch ファイル.
 
 UR Gazebo Simulation launch を include し、その上に Pick & Place ノードと
-動画録画ノードを乗せる。Gazebo 自体は UR launch 内で起動するので二重起動しない。
+動画録画ノードを乗せる。Gazebo 起動後に観測用カメラを spawn_entity で追加し、
+/camera/image_raw に画像を流して video_recorder に拾わせる。
 """
 
 from launch import LaunchDescription
-from launch.actions import IncludeLaunchDescription
+from launch.actions import IncludeLaunchDescription, TimerAction
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import PathJoinSubstitution
 from launch_ros.actions import Node
@@ -14,7 +15,6 @@ from launch_ros.substitutions import FindPackageShare
 
 def generate_launch_description():
     # UR5e + Gazebo + ros2_control は UR 公式 launch に任せる
-    # (前回 ExecuteProcess(gazebo) を独自に起動して port 11345 が衝突したため削除)
     ur_sim = IncludeLaunchDescription(
         PythonLaunchDescriptionSource([
             PathJoinSubstitution([
@@ -28,6 +28,27 @@ def generate_launch_description():
         }.items(),
     )
 
+    # オブザーバーカメラを Gazebo 起動後に動的 spawn
+    # /spawn_entity が立ち上がるのが ~7 秒後なので少し余裕をもって 9 秒待つ
+    camera_sdf = PathJoinSubstitution([
+        FindPackageShare("sim_demo"), "worlds", "overhead_camera.sdf"
+    ])
+    spawn_camera = TimerAction(
+        period=9.0,
+        actions=[
+            Node(
+                package="gazebo_ros",
+                executable="spawn_entity.py",
+                name="spawn_overhead_camera",
+                arguments=[
+                    "-entity", "overhead_camera",
+                    "-file", camera_sdf,
+                ],
+                output="screen",
+            )
+        ],
+    )
+
     # Pick & Place オーケストレーション
     pick_place = Node(
         package="sim_demo",
@@ -35,14 +56,12 @@ def generate_launch_description():
         name="pick_and_place_node",
         output="screen",
         parameters=[{
-            "startup_delay_sec": 12.0,   # gzserver + コントローラ起動を待つ
+            "startup_delay_sec": 14.0,   # gzserver + コントローラ + カメラ起動を待つ
             "step_duration_sec": 2.5,
         }],
     )
 
-    # MP4 録画ノード（Pick & Place 約 50秒 + 余裕 5秒 = 55秒）
-    # UR の default world はカメラなしなので、現状は黒画面の動画が出る。
-    # セマンティックな世界はあとで spawn_entity で個別に追加する予定。
+    # MP4 録画ノード（カメラ起動 t=10 〜 pick_and_place 終了 t=70 + 余裕 = 75秒）
     recorder = Node(
         package="sim_demo",
         executable="video_recorder",
@@ -51,12 +70,13 @@ def generate_launch_description():
         parameters=[{
             "output_path": "/workspace/output/demo.mp4",
             "fps": 30,
-            "duration_sec": 55,
+            "duration_sec": 75,
         }],
     )
 
     return LaunchDescription([
         ur_sim,
+        spawn_camera,
         pick_place,
         recorder,
     ])

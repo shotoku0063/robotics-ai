@@ -27,10 +27,10 @@ docker compose -f docker/docker-compose.yml --profile sim-demo run --rm sim-demo
     bash -c "cd /workspace/ros2_ws && \
              colcon build --symlink-install --packages-select sim_demo ur_simulation_gazebo"
 
-echo "==> [3/4] シミュレーション起動 + 動画録画（約60秒）..."
+echo "==> [3/4] シミュレーション起動 + 動画録画（約75秒）..."
 docker compose -f docker/docker-compose.yml --profile sim-demo run --rm sim-demo \
     bash -c "source /workspace/ros2_ws/install/setup.bash && \
-             timeout 90 ros2 launch sim_demo ur5e_demo.launch.py || true"
+             timeout 110 ros2 launch sim_demo ur5e_demo.launch.py || true"
 
 echo "==> [4/4] 完了確認..."
 if [[ -f output/demo.mp4 ]]; then
