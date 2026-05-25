@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>UR5e Simulation — Iteration Progress</title>
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --blue:      #A100FF;
+      --dark:      #000000;
+      --bg:        #f5f5f7;
+      --gray:      #8c8c93;
+      --gold:      #FF50A0;
+      --white:     #ffffff;
+      --green:     #2EBE89;
+      --red:       #FF4E4E;
+      --blue-lt:   #F5EAFF;
+      --gold-lt:   #FFE6F0;
+      --green-lt:  #E8FAF2;
+    }
+
+    body {
+      font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+      background: var(--white);
+      color: var(--dark);
+      padding: 40px 56px;
+      max-width: 1180px;
+      margin: 0 auto;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    /* ── Header ── */
+    .tag {
+      font-size: 10px; font-weight: 700;
+      letter-spacing: 2px; text-transform: uppercase;
+      color: var(--blue); margin-bottom: 4px;
+    }
+    .headline {
+      font-size: 28px; font-weight: 800;
+      color: var(--dark); line-height: 1.2;
+      letter-spacing: -0.5px;
+      margin-bottom: 6px;
+    }
+    .headline::before {
+      content: ">"; color: var(--blue);
+      font-weight: 800; margin-right: 10px;
+    }
+    .sub {
+      font-size: 14px; color: #555;
+      margin-bottom: 28px;
+    }
+
+    /* ── Section heading ── */
+    .section-head {
+      display: flex; align-items: center; gap: 10px;
+      padding: 0 0 8px; margin: 32px 0 14px;
+      border-bottom: 2px solid var(--blue-lt);
+    }
+    .sec-letter {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 24px; height: 24px;
+      background: var(--blue); color: white;
+      font-size: 14px; font-weight: 800;
+      border-radius: 2px;
+    }
+    .sec-letter.tone-gold  { background: var(--gold); color: var(--dark); }
+    .sec-letter.tone-green { background: var(--green); }
+    .sec-title {
+      font-size: 13px; font-weight: 700; letter-spacing: 1.5px;
+      text-transform: uppercase; color: var(--dark);
+    }
+
+    /* ── Hero metric cards ── */
+    .hero-row {
+      display: grid; grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+    }
+    .hero {
+      padding: 16px 18px;
+      text-align: center;
+      color: white;
+    }
+    .hero.h-blue  { background: var(--blue); }
+    .hero.h-green { background: var(--green); }
+    .hero.h-gold  { background: var(--gold); color: var(--dark); }
+    .hero.h-dark  { background: var(--dark); }
+    .hero-n {
+      font-size: 32px; font-weight: 800;
+      line-height: 1; letter-spacing: -0.5px;
+    }
+    .hero-l {
+      font-size: 11px; opacity: .92;
+      margin-top: 6px; letter-spacing: 0.5px;
+    }
+
+    /* ── Stage matrix ── */
+    .matrix {
+      width: 100%; border-collapse: collapse;
+      font-size: 12.5px;
+    }
+    .matrix th {
+      background: var(--dark); color: white;
+      padding: 9px 8px;
+      font-size: 10px; font-weight: 700;
+      letter-spacing: 1px; text-transform: uppercase;
+      text-align: center;
+    }
+    .matrix th.col-iter { text-align: left; }
+    .matrix td {
+      padding: 9px 8px; text-align: center;
+      border-bottom: 1px solid #eaeaea;
+      color: #444;
+    }
+    .matrix td.iter {
+      text-align: left;
+      font-family: 'Courier New', monospace;
+      font-weight: 700;
+      color: var(--blue);
+    }
+    .matrix td.iter-name {
+      text-align: left;
+      color: #555;
+      font-size: 12px;
+    }
+    .matrix tr:nth-child(even) td { background: var(--bg); }
+    .matrix .pass { color: var(--green); font-weight: 700; font-size: 14px; }
+    .matrix .fail { color: var(--red); font-weight: 700; font-size: 14px; }
+    .matrix .skip { color: #c8c8cd; font-weight: 700; font-size: 14px; }
+    .matrix .size {
+      font-family: 'Courier New', monospace;
+      font-weight: 700;
+    }
+    .matrix .size.ok    { color: var(--green); }
+    .matrix .size.warn  { color: var(--gold); }
+    .matrix .size.none  { color: #c8c8cd; }
+
+    /* ── MP4 size chart ── */
+    .chart-wrap {
+      background: var(--bg);
+      padding: 20px 24px 16px;
+      display: flex; flex-direction: column;
+      gap: 12px;
+    }
+    .chart-bar-row {
+      display: grid;
+      grid-template-columns: 80px 1fr 120px;
+      gap: 12px; align-items: center;
+      font-size: 12px;
+    }
+    .chart-iter {
+      font-family: 'Courier New', monospace;
+      font-weight: 700; color: var(--blue);
+    }
+    .chart-bar-track {
+      height: 22px;
+      background: white;
+      position: relative;
+      overflow: hidden;
+    }
+    .chart-bar-fill {
+      height: 100%;
+      transition: width 0.4s ease;
+    }
+    .chart-bar-fill.b-none { background: #d8d8de; }
+    .chart-bar-fill.b-warn { background: var(--gold); }
+    .chart-bar-fill.b-ok   { background: var(--green); }
+    .chart-value {
+      font-family: 'Courier New', monospace;
+      font-weight: 700;
+      color: var(--dark);
+      text-align: right;
+    }
+
+    /* ── Detail timeline ── */
+    .timeline {
+      display: flex; flex-direction: column;
+      gap: 10px;
+    }
+    .tl-item {
+      display: grid;
+      grid-template-columns: 92px 1fr;
+      gap: 16px;
+      padding: 12px 14px;
+      background: var(--bg);
+      border-left: 4px solid var(--blue);
+    }
+    .tl-item.fail   { border-left-color: var(--red); }
+    .tl-item.ok     { border-left-color: var(--green); }
+    .tl-item.warn   { border-left-color: var(--gold); }
+    .tl-hash {
+      font-family: 'Courier New', monospace;
+      font-weight: 700;
+      color: var(--blue);
+      font-size: 12px;
+    }
+    .tl-body { display: flex; flex-direction: column; gap: 3px; }
+    .tl-title { font-weight: 700; color: var(--dark); font-size: 13px; }
+    .tl-desc  { font-size: 12px; color: #555; }
+    .tl-meta  {
+      font-size: 10.5px;
+      color: #888;
+      font-family: 'Courier New', monospace;
+    }
+
+    /* ── Footer ── */
+    footer {
+      margin-top: 40px;
+      padding-top: 14px;
+      border-top: 1px solid #ececec;
+      font-size: 11px;
+      color: var(--gray);
+    }
+    footer strong { color: var(--dark); }
+
+    /* ── Key reading ── */
+    .legend {
+      display: flex; gap: 16px;
+      font-size: 11px; color: #666;
+      margin-top: 10px;
+    }
+    .legend span { display: inline-flex; align-items: center; gap: 5px; }
+    .legend .pass { color: var(--green); font-weight: 700; font-size: 14px; }
+    .legend .fail { color: var(--red); font-weight: 700; font-size: 14px; }
+    .legend .skip { color: #c8c8cd; font-weight: 700; font-size: 14px; }
+  </style>
+</head>
+<body>
+
+  <div class="tag">CI Pipeline · Sim Demo</div>
+  <h1 class="headline">UR5e Simulation ―― 8 イテレーションの進捗可視化</h1>
+  <p class="sub">apt install エラーから始まり、Pick &amp; Place が映る MP4 出力まで到達するまでの各ステージの解放履歴</p>
+
+  <!-- ===================================
+       SECTION A: Hero metrics
+  =================================== -->
+  <div class="section-head">
+    <span class="sec-letter">A</span>
+    <span class="sec-title">ハイライト指標</span>
+  </div>
+  <div class="hero-row">
+    <div class="hero h-blue">
+      <div class="hero-n">8</div>
+      <div class="hero-l">CI 実行回数</div>
+    </div>
+    <div class="hero h-green">
+      <div class="hero-n">6/6</div>
+      <div class="hero-l">最終ステージ全グリーン</div>
+    </div>
+    <div class="hero h-gold">
+      <div class="hero-n">5.2 MB</div>
+      <div class="hero-l">最終 MP4 サイズ (1MB以上=実映像)</div>
+    </div>
+    <div class="hero h-dark">
+      <div class="hero-n">6m34s</div>
+      <div class="hero-l">最新 CI 実行時間</div>
+    </div>
+  </div>
+
+  <!-- ===================================
+       SECTION B: Stage progression matrix
+  =================================== -->
+  <div class="section-head">
+    <span class="sec-letter tone-gold">B</span>
+    <span class="sec-title">ステージ解放マトリクス ―― どこで詰まっていたか</span>
+  </div>
+  <table class="matrix">
+    <thead>
+      <tr>
+        <th class="col-iter">#</th>
+        <th class="col-iter">コミット / 修正内容</th>
+        <th>Image<br>Build</th>
+        <th>Workspace<br>Build</th>
+        <th>Find<br>Executable</th>
+        <th>Controller<br>Connect</th>
+        <th>Camera<br>Topic</th>
+        <th>Real<br>MP4</th>
+        <th>MP4 size</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="iter">#1</td>
+        <td class="iter-name">(initial CI) — apt only</td>
+        <td><span class="fail">✗</span></td>
+        <td><span class="skip">−</span></td>
+        <td><span class="skip">−</span></td>
+        <td><span class="skip">−</span></td>
+        <td><span class="skip">−</span></td>
+        <td><span class="skip">−</span></td>
+        <td><span class="size none">−</span></td>
+      </tr>
+      <tr>
+        <td class="iter">#2</td>
+        <td class="iter-name">8e0babb — clone UR sim in Dockerfile</td>
+        <td><span class="pass">✓</span></td>
+        <td><span class="pass">✓</span></td>
+        <td><span class="fail">✗</span></td>
+        <td><span class="skip">−</span></td>
+        <td><span class="skip">−</span></td>
+        <td><span class="skip">−</span></td>
+        <td><span class="size none">−</span></td>
+      </tr>
+      <tr>
+        <td class="iter">#3</td>
+        <td class="iter-name">b27afa0 — host-side vendoring</td>
+        <td><span class="pass">✓</span></td>
+        <td><span class="pass">✓</span></td>
+        <td><span class="fail">✗</span></td>
+        <td><span class="skip">−</span></td>
+        <td><span class="skip">−</span></td>
+        <td><span class="skip">−</span></td>
+        <td><span class="size none">−</span></td>
+      </tr>
+      <tr>
+        <td class="iter">#4</td>
+        <td class="iter-name">40465eb — drop --symlink-install + debug dump</td>
+        <td><span class="pass">✓</span></td>
+        <td><span class="pass">✓</span></td>
+        <td><span class="fail">✗</span></td>
+        <td><span class="skip">−</span></td>
+        <td><span class="skip">−</span></td>
+        <td><span class="skip">−</span></td>
+        <td><span class="size none">−</span></td>
+      </tr>
+      <tr>
+        <td class="iter">#5</td>
+        <td class="iter-name">76f22b7 — setup.cfg で script_dir 指定</td>
+        <td><span class="pass">✓</span></td>
+        <td><span class="pass">✓</span></td>
+        <td><span class="pass">✓</span></td>
+        <td><span class="fail">✗</span></td>
+        <td><span class="skip">−</span></td>
+        <td><span class="skip">−</span></td>
+        <td><span class="size none">−</span></td>
+      </tr>
+      <tr>
+        <td class="iter">#6</td>
+        <td class="iter-name">4bf1a6d — controller topic 名修正 + 黒フレーム fallback</td>
+        <td><span class="pass">✓</span></td>
+        <td><span class="pass">✓</span></td>
+        <td><span class="pass">✓</span></td>
+        <td><span class="pass">✓</span></td>
+        <td><span class="fail">✗</span></td>
+        <td><span class="fail">✗</span></td>
+        <td class="size warn">46 KB</td>
+      </tr>
+      <tr>
+        <td class="iter">#7</td>
+        <td class="iter-name">0897afb — カメラ SDF を spawn_entity で投入</td>
+        <td><span class="pass">✓</span></td>
+        <td><span class="pass">✓</span></td>
+        <td><span class="pass">✓</span></td>
+        <td><span class="pass">✓</span></td>
+        <td><span class="fail">✗</span></td>
+        <td><span class="fail">✗</span></td>
+        <td class="size warn">61 KB</td>
+      </tr>
+      <tr>
+        <td class="iter">#8</td>
+        <td class="iter-name"><strong>c66b211 — camera_name=camera でトピック直結</strong></td>
+        <td><span class="pass">✓</span></td>
+        <td><span class="pass">✓</span></td>
+        <td><span class="pass">✓</span></td>
+        <td><span class="pass">✓</span></td>
+        <td><span class="pass">✓</span></td>
+        <td><span class="pass">✓</span></td>
+        <td class="size ok">5.2 MB</td>
+      </tr>
+    </tbody>
+  </table>
+  <div class="legend">
+    <span><span class="pass">✓</span> 通過</span>
+    <span><span class="fail">✗</span> 失敗（次イテレーションで修正）</span>
+    <span><span class="skip">−</span> 前段失敗のため未実行</span>
+  </div>
+
+  <!-- ===================================
+       SECTION C: MP4 size growth bar chart
+  =================================== -->
+  <div class="section-head">
+    <span class="sec-letter tone-green">C</span>
+    <span class="sec-title">MP4 出力サイズの推移 ―― 動画として意味を持つまで</span>
+  </div>
+  <!-- スケール: ロガリズミック比較ではなく、5.2MB を 100% とした線形 -->
+  <div class="chart-wrap">
+    <div class="chart-bar-row">
+      <div class="chart-iter">#1</div>
+      <div class="chart-bar-track"><div class="chart-bar-fill b-none" style="width: 0%;"></div></div>
+      <div class="chart-value">出力なし</div>
+    </div>
+    <div class="chart-bar-row">
+      <div class="chart-iter">#2</div>
+      <div class="chart-bar-track"><div class="chart-bar-fill b-none" style="width: 0%;"></div></div>
+      <div class="chart-value">出力なし</div>
+    </div>
+    <div class="chart-bar-row">
+      <div class="chart-iter">#3</div>
+      <div class="chart-bar-track"><div class="chart-bar-fill b-none" style="width: 0%;"></div></div>
+      <div class="chart-value">出力なし</div>
+    </div>
+    <div class="chart-bar-row">
+      <div class="chart-iter">#4</div>
+      <div class="chart-bar-track"><div class="chart-bar-fill b-none" style="width: 0%;"></div></div>
+      <div class="chart-value">出力なし</div>
+    </div>
+    <div class="chart-bar-row">
+      <div class="chart-iter">#5</div>
+      <div class="chart-bar-track"><div class="chart-bar-fill b-none" style="width: 0%;"></div></div>
+      <div class="chart-value">出力なし</div>
+    </div>
+    <div class="chart-bar-row">
+      <div class="chart-iter">#6</div>
+      <div class="chart-bar-track"><div class="chart-bar-fill b-warn" style="width: 0.9%;"></div></div>
+      <div class="chart-value">46 KB (黒)</div>
+    </div>
+    <div class="chart-bar-row">
+      <div class="chart-iter">#7</div>
+      <div class="chart-bar-track"><div class="chart-bar-fill b-warn" style="width: 1.2%;"></div></div>
+      <div class="chart-value">61 KB (黒)</div>
+    </div>
+    <div class="chart-bar-row">
+      <div class="chart-iter">#8</div>
+      <div class="chart-bar-track"><div class="chart-bar-fill b-ok" style="width: 100%;"></div></div>
+      <div class="chart-value"><strong>5.2 MB (実映像)</strong></div>
+    </div>
+  </div>
+
+  <!-- ===================================
+       SECTION D: Detail timeline
+  =================================== -->
+  <div class="section-head">
+    <span class="sec-letter">D</span>
+    <span class="sec-title">詳細タイムライン ―― 各イテレーションで何を学んだか</span>
+  </div>
+  <div class="timeline">
+    <div class="tl-item fail">
+      <div class="tl-hash">#1</div>
+      <div class="tl-body">
+        <div class="tl-title">apt install で停止</div>
+        <div class="tl-desc">ros-humble-ur-simulation-gazebo が apt バイナリ配布されていないことを発見。UR 公式は GitHub ソースのみ提供。</div>
+        <div class="tl-meta">CI 56秒 · apt 失敗</div>
+      </div>
+    </div>
+    <div class="tl-item fail">
+      <div class="tl-hash">8e0babb</div>
+      <div class="tl-body">
+        <div class="tl-title">Dockerfile 内 git clone</div>
+        <div class="tl-desc">apt 通過したが、bind mount が /workspace を上書きしてイメージ内のソースが隠れる。「launch がパッケージを見つけられない」エラー。</div>
+        <div class="tl-meta">CI 7m26s · ros2 launch 失敗</div>
+      </div>
+    </div>
+    <div class="tl-item fail">
+      <div class="tl-hash">b27afa0</div>
+      <div class="tl-body">
+        <div class="tl-title">CI / record_demo.sh 側で vendor clone</div>
+        <div class="tl-desc">パッケージは見つかった。しかし sim_demo の libexec ディレクトリが install/sim_demo/lib/sim_demo に作られていない。</div>
+        <div class="tl-meta">CI 8m6s · libexec dir 欠落</div>
+      </div>
+    </div>
+    <div class="tl-item fail">
+      <div class="tl-hash">40465eb</div>
+      <div class="tl-body">
+        <div class="tl-title">--symlink-install を外して install ツリーを可視化</div>
+        <div class="tl-desc">entry-point スクリプトが /bin/ に入っていて /lib/sim_demo/ に無いと判明。ament_python 標準の setup.cfg 不在が原因。</div>
+        <div class="tl-meta">CI 7m54s · 同じ libexec 失敗だが原因特定</div>
+      </div>
+    </div>
+    <div class="tl-item fail">
+      <div class="tl-hash">76f22b7</div>
+      <div class="tl-body">
+        <div class="tl-title">setup.cfg で install_scripts を $base/lib/sim_demo に</div>
+        <div class="tl-desc">libexec dir が出来て launch がノードを発見、pick_and_place が起動。だが scaled_joint_trajectory_controller に接続しようとして失敗（sim では prefix なし）。</div>
+        <div class="tl-meta">CI 9m9s · action server 未接続</div>
+      </div>
+    </div>
+    <div class="tl-item warn">
+      <div class="tl-hash">4bf1a6d</div>
+      <div class="tl-body">
+        <div class="tl-title">controller トピック名 + gazebo 重複削除 + 黒フレーム fallback</div>
+        <div class="tl-desc">Pick &amp; Place 21キーフレームが全て実行された。但しカメラがまだ世界に存在せず、video_recorder はフォールバックで黒画面 MP4 を出力。</div>
+        <div class="tl-meta">CI 9m21s · MP4 46KB</div>
+      </div>
+    </div>
+    <div class="tl-item warn">
+      <div class="tl-hash">0897afb</div>
+      <div class="tl-body">
+        <div class="tl-title">カメラ SDF を TimerAction + spawn_entity で投入</div>
+        <div class="tl-desc">カメラは spawn 成功したが、SDF 内 remapping が効かず /overhead_cam/image_raw に publish。/camera/image_raw を購読する video_recorder は受信できず黒画面のまま。</div>
+        <div class="tl-meta">CI 6m51s · MP4 61KB</div>
+      </div>
+    </div>
+    <div class="tl-item ok">
+      <div class="tl-hash">c66b211</div>
+      <div class="tl-body">
+        <div class="tl-title">camera_name=camera で直接 /camera/image_raw に publish</div>
+        <div class="tl-desc">video_recorder が 2,250 frames（75秒 × 30fps）を取得、UR5e の動きが映る MP4 5.2MB が完成。E2E パイプライン全通過。</div>
+        <div class="tl-meta">CI 6m34s · <strong>MP4 5.2MB (実映像)</strong></div>
+      </div>
+    </div>
+  </div>
+
+  <footer>
+    <strong>読み方</strong> ―― 各イテレーションは前段の失敗の根本原因をひとつだけ潰している（apt → Dockerfile → workspace → install layout → controller name → camera topic）。
+    並走してデバッグ情報を残すコミット (#4) を1本入れたことで、原因特定の速度が上がった。
+  </footer>
+
+</body>
+</html>
