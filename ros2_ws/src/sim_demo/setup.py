@@ -24,6 +24,7 @@ setup(
         "console_scripts": [
             "pick_and_place = sim_demo.pick_and_place_node:main",
             "video_recorder = sim_demo.video_recorder_node:main",
+            "perception = sim_demo.perception_node:main",
         ],
     },
 )

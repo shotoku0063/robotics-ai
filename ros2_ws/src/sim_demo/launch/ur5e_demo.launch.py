@@ -49,6 +49,14 @@ def generate_launch_description():
         ],
     )
 
+    # Perception ノード（OpenCV 色検出 + PyTorch CNN 推論）
+    perception = Node(
+        package="sim_demo",
+        executable="perception",
+        name="perception_node",
+        output="screen",
+    )
+
     # Pick & Place オーケストレーション
     pick_place = Node(
         package="sim_demo",
@@ -77,6 +85,7 @@ def generate_launch_description():
     return LaunchDescription([
         ur_sim,
         spawn_camera,
+        perception,
         pick_place,
         recorder,
     ])
