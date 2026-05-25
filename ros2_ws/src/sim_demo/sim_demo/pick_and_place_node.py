@@ -1,11 +1,11 @@
 """UR5e Pick & Place オーケストレーションノード.
 
-scaled_joint_trajectory_controller/follow_joint_trajectory アクション経由で
-事前定義したジョイント角キーフレームを順次実行する。
+joint_trajectory_controller/follow_joint_trajectory アクション経由でハードコード
+キーフレームを実行し、Perception の検出 (x, y) から shoulder_pan を補正する。
 
-MoveIt 2 IK ソルバを介さず直接ジョイント角を指定することで、
-シミュレーション環境の依存を最小化している（実機転用時は MoveIt 2 統合に
-差し替え推奨）。
+「グリッパ」は Gazebo の /demo/set_entity_state サービスを使って対象キューブを
+TF (world → tool0) に毎tickテレポートさせる擬似実装。リアルな vacuum plugin は
+v2 で導入する想定で、現状はキューブが弾き飛ばされず把持されているように見せる。
 """
 
 import json
@@ -20,6 +20,9 @@ from builtin_interfaces.msg import Duration
 from std_msgs.msg import String
 from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
 from control_msgs.action import FollowJointTrajectory
+from gazebo_msgs.srv import SetEntityState
+from gazebo_msgs.msg import EntityState
+from tf2_ros import Buffer, TransformListener, TransformException
 
 
 UR5E_JOINTS = [
@@ -36,11 +39,18 @@ def _rad(deg):
     return deg * math.pi / 180.0
 
 
-# 半導体ワークベンチ上のキーフレーム（ラフな目視推定値、要キャリブレーション）
 # home → pre-pick → pick → lift → pre-place → place → lift → home
-# 単位: rad
+# 単位: rad。Perception 検出があれば shoulder_pan_joint は実行時に補正する。
 HOME = [_rad(0), _rad(-90), _rad(0), _rad(-90), _rad(0), _rad(0)]
 
+# spawn 想定位置 (cube_red/blue/green.sdf と一致させること)
+ASSUMED_CUBE_XY = {
+    "red":   (0.40, -0.15),
+    "blue":  (0.50, -0.05),
+    "green": (0.60,  0.05),
+}
+
+# 各色の pick / place キーフレーム（shoulder_pan は ASSUMED_CUBE_XY からの atan2 で補正）
 PICK_POSES = {
     "red":   [_rad( 20), _rad(-60), _rad(95), _rad(-125), _rad(-90), _rad(0)],
     "blue":  [_rad(  0), _rad(-55), _rad(100), _rad(-135), _rad(-90), _rad(0)],
@@ -66,11 +76,11 @@ class PickAndPlaceNode(Node):
         super().__init__("pick_and_place_node")
         self.declare_parameter("startup_delay_sec", 10.0)
         self.declare_parameter("step_duration_sec", 2.5)
+        self.declare_parameter("gripper_tick_hz", 30.0)
         self.startup_delay = self.get_parameter("startup_delay_sec").value
         self.step_duration = self.get_parameter("step_duration_sec").value
+        self.gripper_tick_hz = self.get_parameter("gripper_tick_hz").value
 
-        # ur_simulation_gazebo は scaled_ 接頭辞なしの joint_trajectory_controller を spawn する
-        # （実機 ur_robot_driver は scaled_joint_trajectory_controller を使用）
         action_topic = "/joint_trajectory_controller/follow_joint_trajectory"
         self.client = ActionClient(self, FollowJointTrajectory, action_topic)
         self.get_logger().info(f"Action client: {action_topic}")
@@ -78,16 +88,29 @@ class PickAndPlaceNode(Node):
             f"起動から {self.startup_delay:.0f} 秒待機後にシーケンスを開始します"
         )
 
-        # Perception ノードからの検出結果を受け取る（color → world座標）
-        # 現状は受信ログ用途。今後の C フェーズで world に対象を置けば把持目標として活用予定
+        self.tf_buffer = Buffer()
+        self.tf_listener = TransformListener(self.tf_buffer, self)
+
+        # gazebo_ros_state プラグインが提供する set_entity_state サービスを探す
+        # （ワールドファイルによって namespace が異なるので候補リストから自動選択）
+        self._set_state_candidates = [
+            "/demo/set_entity_state",
+            "/gazebo/set_entity_state",
+            "/set_entity_state",
+        ]
+        self.set_state_cli = None
+
         self._detected_objects = {}
         self._first_detection_logged = False
         self.detection_sub = self.create_subscription(
             String, "/perception/detections", self._on_detection, 10
         )
 
-        # オーケストレーションはバックグラウンドスレッドで実行
-        # （Executor を塞がないため、ROS 2 のコールバックは並行して捌ける）
+        # 擬似グリッパの carry スレッド制御
+        self._carry_target = None  # 把持中のキューブ名
+        self._carry_stop = threading.Event()
+        self._carry_thread = None
+
         self._thread = threading.Thread(target=self._orchestrate, daemon=True)
         self._thread.start()
 
@@ -106,6 +129,60 @@ class PickAndPlaceNode(Node):
         except (json.JSONDecodeError, KeyError, TypeError) as exc:
             self.get_logger().warn(f"detections パース失敗: {exc}")
 
+    def _pan_correction(self, color):
+        """検出された (x, y) と spawn 想定位置の base 角度差を返す (rad)."""
+        det = self._detected_objects.get(color)
+        if det is None:
+            return 0.0
+        ax, ay = ASSUMED_CUBE_XY[color]
+        dx, dy, _ = det
+        assumed_angle = math.atan2(ay, ax)
+        detected_angle = math.atan2(dy, dx)
+        delta = detected_angle - assumed_angle
+        # 大きすぎる補正は誤検出の可能性が高いのでクリップ
+        return max(-_rad(15), min(_rad(15), delta))
+
+    def _corrected_pose(self, base_pose, color):
+        corrected = list(base_pose)
+        corrected[0] += self._pan_correction(color)
+        return corrected
+
+    def _carry_loop(self):
+        period = 1.0 / max(1.0, self.gripper_tick_hz)
+        while not self._carry_stop.is_set():
+            target = self._carry_target
+            if target is not None and self.set_state_cli is not None:
+                try:
+                    tf = self.tf_buffer.lookup_transform(
+                        "world", "tool0", rclpy.time.Time()
+                    )
+                    state = EntityState()
+                    state.name = target
+                    state.reference_frame = "world"
+                    state.pose.position.x = tf.transform.translation.x
+                    state.pose.position.y = tf.transform.translation.y
+                    # tool0 直下に少しオフセット（キューブが空中に浮いている見た目に）
+                    state.pose.position.z = tf.transform.translation.z - 0.02
+                    state.pose.orientation.w = 1.0
+                    req = SetEntityState.Request()
+                    req.state = state
+                    self.set_state_cli.call_async(req)
+                except TransformException:
+                    pass  # TF まだ準備中ならスキップ
+            time.sleep(period)
+
+    def _grip(self, cube_name):
+        self._carry_target = cube_name
+        if self._carry_thread is None or not self._carry_thread.is_alive():
+            self._carry_stop.clear()
+            self._carry_thread = threading.Thread(
+                target=self._carry_loop, daemon=True
+            )
+            self._carry_thread.start()
+
+    def _release(self):
+        self._carry_target = None  # carry スレッドは生かしたまま、次の grip で再利用
+
     def _orchestrate(self):
         time.sleep(self.startup_delay)
 
@@ -115,24 +192,47 @@ class PickAndPlaceNode(Node):
             )
             return
 
+        # set_entity_state サービスを候補リストから検出
+        for name in self._set_state_candidates:
+            cli = self.create_client(SetEntityState, name)
+            if cli.wait_for_service(timeout_sec=2.0):
+                self.set_state_cli = cli
+                self.get_logger().info(f"擬似グリッパ用 service 検出: {name}")
+                break
+        if self.set_state_cli is None:
+            self.get_logger().warn(
+                f"set_entity_state が {self._set_state_candidates} のどこにも見つかりません。"
+                "擬似グリッパは無効（キューブは弾かれる挙動になります）"
+            )
+
         self.get_logger().info("Pick & Place シーケンス開始")
         self._send(HOME, label="home (起点)")
 
         for name in ["red", "blue", "green"]:
-            pre = _lift_offset(PICK_POSES[name])
-            self._send(pre, label=f"{name} 上方へ移動 (pre-pick)")
-            self._send(PICK_POSES[name], label=f"{name} を把持位置へ降下")
-            # gripper close 相当: ここではログのみ（gripper plugin 統合は v2 で）
-            self.get_logger().info(f"  ✦ {name} を把持（gripper close 相当）")
-            self._send(pre, label=f"{name} を持ち上げ")
+            pan_corr = self._pan_correction(name)
+            if abs(pan_corr) > 1e-3:
+                self.get_logger().info(
+                    f"  {name}: 検出ベース pan 補正 {math.degrees(pan_corr):+.1f}°"
+                )
+            pick = self._corrected_pose(PICK_POSES[name], name)
+            place = self._corrected_pose(PLACE_POSES[name], name)
+            pre_pick = _lift_offset(pick)
+            pre_place = _lift_offset(place)
 
-            pre_place = _lift_offset(PLACE_POSES[name])
+            self._send(pre_pick, label=f"{name} 上方へ移動 (pre-pick)")
+            self._send(pick, label=f"{name} を把持位置へ降下")
+            self._grip(name)
+            self.get_logger().info(f"  ✦ {name} を把持 (carry on)")
+            self._send(pre_pick, label=f"{name} を持ち上げ")
+
             self._send(pre_place, label=f"{name} をトレー上方へ移動")
-            self._send(PLACE_POSES[name], label=f"{name} をトレーに降下")
-            self.get_logger().info(f"  ✦ {name} を配置（gripper open 相当）")
+            self._send(place, label=f"{name} をトレーに降下")
+            self._release()
+            self.get_logger().info(f"  ✦ {name} を配置 (carry off)")
             self._send(pre_place, label=f"{name} 配置後に上昇")
 
         self._send(HOME, label="home (終端)")
+        self._carry_stop.set()
         self.get_logger().info("Pick & Place シーケンス完了")
 
     def _send(self, joint_positions, label=""):
@@ -151,8 +251,6 @@ class PickAndPlaceNode(Node):
 
         if label:
             self.get_logger().info(f"→ {label}")
-        # Fire-and-forget: 軌道の time_from_start でコントローラが動作完了タイミングを管理する
-        # 結果取得を待たず、step_duration + 余裕分だけ Python 側で wait
         self.client.send_goal_async(goal)
         time.sleep(self.step_duration + 0.3)
 
