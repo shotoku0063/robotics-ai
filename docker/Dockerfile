@@ -23,9 +23,10 @@ RUN pip3 install --no-cache-dir -r requirements.txt
 COPY ros2_ws/ /workspace/ros2_ws/
 
 SHELL ["/bin/bash", "-c"]
+# sim_demo は Gazebo/UR に依存するため Dockerfile.simulation 側でビルドする
 RUN source /opt/ros/humble/setup.bash && \
     cd /workspace/ros2_ws && \
-    colcon build --symlink-install
+    colcon build --symlink-install --packages-skip sim_demo
 
 RUN echo "source /opt/ros/humble/setup.bash" >> ~/.bashrc && \
     echo "source /workspace/ros2_ws/install/setup.bash" >> ~/.bashrc
