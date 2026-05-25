@@ -17,5 +17,25 @@ fi
 export GAZEBO_PLUGIN_PATH=/opt/ros/humble/lib:${GAZEBO_PLUGIN_PATH}
 export QT_QPA_PLATFORM=offscreen
 
+# UR5e sim が使う empty.world に gazebo_ros_state プラグインを注入
+# （/demo/set_entity_state サービスを提供し、擬似グリッパが動くようにする）
+EMPTY_WORLD="/opt/ros/humble/share/gazebo_ros/worlds/empty.world"
+if [ -f "${EMPTY_WORLD}" ] && ! grep -q "gazebo_ros_state" "${EMPTY_WORLD}"; then
+  python3 - "${EMPTY_WORLD}" <<'PY'
+import sys, pathlib
+p = pathlib.Path(sys.argv[1])
+text = p.read_text()
+plugin = (
+  '    <plugin name="gazebo_ros_state" filename="libgazebo_ros_state.so">\n'
+  '      <ros><namespace>/demo</namespace></ros>\n'
+  '      <update_rate>30.0</update_rate>\n'
+  '    </plugin>\n'
+)
+patched = text.replace('</world>', plugin + '  </world>', 1)
+p.write_text(patched)
+print(f"[entrypoint_sim] Injected gazebo_ros_state plugin into {p}")
+PY
+fi
+
 # 渡されたコマンドを実行（指定がなければ bash）
 exec "$@"
