@@ -30,22 +30,41 @@ def generate_launch_description():
 
     # オブザーバーカメラを Gazebo 起動後に動的 spawn
     # /spawn_entity が立ち上がるのが ~7 秒後なので少し余裕をもって 9 秒待つ
-    camera_sdf = PathJoinSubstitution([
-        FindPackageShare("sim_demo"), "worlds", "overhead_camera.sdf"
-    ])
+    def _sdf(name):
+        return PathJoinSubstitution([
+            FindPackageShare("sim_demo"), "worlds", f"{name}.sdf"
+        ])
+
+    def _spawn(entity_name, sdf_name, pose=None):
+        args = ["-entity", entity_name, "-file", _sdf(sdf_name)]
+        if pose is not None:
+            x, y, z = pose
+            args += ["-x", str(x), "-y", str(y), "-z", str(z)]
+        return Node(
+            package="gazebo_ros",
+            executable="spawn_entity.py",
+            name=f"spawn_{entity_name}",
+            arguments=args,
+            output="screen",
+        )
+
     spawn_camera = TimerAction(
         period=9.0,
+        actions=[_spawn("overhead_camera", "overhead_camera")],
+    )
+
+    # ワークベンチ（テーブル + トレー）とカラフルな部品 3 個を spawn
+    # 検出対象が world に存在することで Perception が実検出を出力するようになる
+    spawn_scene = TimerAction(
+        period=10.5,
+        actions=[_spawn("scene_workbench", "scene_workbench")],
+    )
+    spawn_cubes = TimerAction(
+        period=11.5,
         actions=[
-            Node(
-                package="gazebo_ros",
-                executable="spawn_entity.py",
-                name="spawn_overhead_camera",
-                arguments=[
-                    "-entity", "overhead_camera",
-                    "-file", camera_sdf,
-                ],
-                output="screen",
-            )
+            _spawn("cube_red",   "cube_red",   pose=(0.40, -0.15, 0.45)),
+            _spawn("cube_blue",  "cube_blue",  pose=(0.50, -0.05, 0.45)),
+            _spawn("cube_green", "cube_green", pose=(0.60,  0.05, 0.45)),
         ],
     )
 
@@ -85,6 +104,8 @@ def generate_launch_description():
     return LaunchDescription([
         ur_sim,
         spawn_camera,
+        spawn_scene,
+        spawn_cubes,
         perception,
         pick_place,
         recorder,
