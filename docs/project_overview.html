@@ -340,6 +340,7 @@
     .ph-items li::before { content: "□ "; color: var(--blue); }
     .phase:nth-child(2) .ph-items li::before { color: #C2185B; }
     .phase:nth-child(3) .ph-items li::before { color: #1a8a5a; }
+    .ph-items.ph-done li::before { content: "✓ "; color: var(--green); font-weight: 700; }
     .ph-tag {
       display: inline-block; margin-top: 6px;
       font-size: 10px; font-weight: 700;
@@ -475,14 +476,14 @@
             </ul>
           </div>
           <div class="ov-col ou">
-            <div class="ov-badge">✓ Outcome</div>
-            <div class="ov-title">期待するアウトカム</div>
+            <div class="ov-badge">✓ Outcome (already delivered)</div>
+            <div class="ov-title">実装済みアウトカム</div>
             <ul class="ov-list">
-              <li>30Hz リアルタイム推論対応</li>
-              <li>CUDA / CPU 切り替え透過的に動作</li>
-              <li>モデル差し替えで多タスク対応</li>
-              <li>Gazebo シミュレーションで事前検証</li>
-              <li>CI/CD でリグレッションを自動検知</li>
+              <li>UR5e Pick &amp; Place を Gazebo で動作</li>
+              <li>OpenCV 色検出 + PyTorch CNN 推論</li>
+              <li>CI で MP4 自動生成（実機なし検証）</li>
+              <li>CUDA / CPU 透過的に切り替え</li>
+              <li>3 ワークフロー × 全グリーン体制</li>
             </ul>
           </div>
         </div>
@@ -520,12 +521,12 @@
             </ul>
           </div>
           <div class="tc">
-            <div class="tc-head"><span class="tc-icon">🐳</span><div><div class="tc-name">Docker</div><div class="tc-ver">Compose v2</div></div></div>
+            <div class="tc-head"><span class="tc-icon">🐳</span><div><div class="tc-name">Docker + Gazebo</div><div class="tc-ver">Compose v2 / Classic 11</div></div></div>
             <ul class="tc-points">
-              <li>ros:humble-ros-base ベースイメージ</li>
-              <li>network_mode: host で ROS 通信</li>
-              <li>--profile simulation で Gazebo 起動</li>
-              <li>/dev/video0 デバイスマウント対応</li>
+              <li>osrf/ros:humble-desktop イメージ</li>
+              <li>Xvfb で X11 不要のヘッドレス動作</li>
+              <li>UR5e + ros2_control を Gazebo 起動</li>
+              <li>FFmpeg で MP4 録画パイプライン</li>
             </ul>
           </div>
         </div>
@@ -591,27 +592,27 @@
             </div>
             <div class="flow-diagram">
               <div class="flow-node">
-                <div class="flow-node-name">Camera</div>
+                <div class="flow-node-name">Gazebo Camera</div>
                 <div class="flow-node-topic">/camera/image_raw</div>
-                <div class="flow-node-detail">sensor_msgs/Image<br>30 Hz, BGR8</div>
+                <div class="flow-node-detail">overhead_camera<br>30 Hz, BGR8</div>
               </div>
               <div class="flow-arrow">→</div>
               <div class="flow-node">
                 <div class="flow-node-name">Perception</div>
                 <div class="flow-node-topic">/perception/detections</div>
-                <div class="flow-node-detail">PyTorch 推論<br>cv_bridge 変換</div>
+                <div class="flow-node-detail">OpenCV HSV +<br>PyTorch CNN</div>
               </div>
               <div class="flow-arrow">→</div>
               <div class="flow-node">
-                <div class="flow-node-name">Planning</div>
-                <div class="flow-node-topic">/planning/waypoints</div>
-                <div class="flow-node-detail">経路ポイント生成<br>nav_msgs/Path</div>
+                <div class="flow-node-name">Pick &amp; Place</div>
+                <div class="flow-node-topic">pan 補正 + carry TF</div>
+                <div class="flow-node-detail">JointTrajectory<br>Action Client</div>
               </div>
               <div class="flow-arrow">→</div>
               <div class="flow-node">
-                <div class="flow-node-name">Control</div>
-                <div class="flow-node-topic">/cmd_vel</div>
-                <div class="flow-node-detail">PID 制御<br>geometry_msgs/Twist</div>
+                <div class="flow-node-name">UR5e (sim)</div>
+                <div class="flow-node-topic">joint_trajectory_<br>controller</div>
+                <div class="flow-node-detail">6軸関節制御<br>gazebo_ros2_control</div>
               </div>
             </div>
           </div>
@@ -649,7 +650,7 @@
     </div>
     <div class="slide-foot">
       <span class="takeaway-label">Key Takeaway</span>
-      <span class="takeaway-text">各ノードは独立した ROS 2 プロセス ―― <strong>Perception / Planning / Control を個別に差し替え・テスト可能な疎結合設計</strong></span>
+      <span class="takeaway-text">Perception の検出 (x,y) で shoulder_pan を実行時補正 ―― <strong>OpenCV+PyTorch の認識結果がそのままジョイント軌道へ反映される ML→Motion 連携</strong></span>
       <span class="slide-num">3 / 5</span>
     </div>
   </div>
@@ -660,7 +661,7 @@
   <div class="slide" data-i="4">
     <div class="slide-head">
       <div class="tag">03 — CI/CD &amp; Test Strategy</div>
-      <h2 class="headline">GitHub Actions 3ジョブ構成 + Docker 不要の高速ユニットテスト</h2>
+      <h2 class="headline">GitHub Actions 2ワークフロー構成 ―― 高速 CI + ヘッドレス Sim 動画生成</h2>
     </div>
     <div class="slide-body">
       <div class="s4-body">
@@ -668,7 +669,7 @@
         <div>
           <div class="section-head">
             <span class="sec-letter">A</span>
-            <span class="sec-title">CI/CD パイプライン ―― GitHub Actions 3ジョブ構成</span>
+            <span class="sec-title">CI/CD ―― ci.yml (3 jobs) + sim-demo.yml (1 job)</span>
           </div>
           <div class="cicd-row">
             <div class="cicd-job j1">
@@ -700,6 +701,12 @@
                 <li>ros:humble ベース本番同一イメージを検証</li>
               </ul>
             </div>
+          </div>
+          <!-- Sim Demo workflow callout -->
+          <div style="margin-top: 10px; padding: 11px 14px; background: var(--dark); color: #fff; display: flex; align-items: center; gap: 14px;">
+            <span style="font-size: 10px; font-weight: 700; letter-spacing: 2px; color: var(--gold);">+ sim-demo.yml</span>
+            <span style="font-size: 13px; font-weight: 700;">Headless UR5e Pick &amp; Place → MP4 Artifact</span>
+            <span style="margin-left: auto; font-size: 12px; color: rgba(255,255,255,.65); font-family: 'Courier New', monospace;">Xvfb · Gazebo · FFmpeg · ~3 min</span>
           </div>
         </div>
         <!-- SECTION B: Test strategy -->
@@ -768,24 +775,24 @@
             <div class="cmd-desc">Perception ノードを起動しカメラトピックを購読・推論結果を配信する。Gazebo と併用で実機なし検証も可能。</div>
           </div>
           <div class="cmd-block">
-            <div class="cmd-label">📈 モデル学習</div>
-            <div class="cmd-desc">PyTorch モデルを学習し models/ へ保存する。エポック・バッチサイズ・学習率を引数で制御できる。</div>
+            <div class="cmd-label">🎬 UR5e Pick &amp; Place デモ録画</div>
+            <div class="cmd-desc"><code>./scripts/record_demo.sh</code> ―― Gazebo + Perception + Pick&amp;Place を一括起動し output/demo.mp4 を生成。ヘッドレスで動くので画面なしの CI でも再現できる。</div>
           </div>
         </div>
         <!-- Roadmap -->
         <div class="roadmap">
           <div class="phase">
-            <div class="ph-badge">Phase 1 — Foundation</div>
+            <div class="ph-badge">Phase 1 — Foundation ✓ Delivered</div>
             <div class="ph-title">コア実装の完成</div>
-            <ul class="ph-items">
-              <li>物体検出モデル実装</li>
-              <li>Planning ノード完成</li>
-              <li>Control ノード完成</li>
+            <ul class="ph-items ph-done">
+              <li>OpenCV+PyTorch 物体検出</li>
+              <li>Pick &amp; Place ノード</li>
+              <li>UR5e 関節軌道制御</li>
               <li>Launch ファイル整備</li>
               <li>Gazebo シミュレーション</li>
-              <li>E2E テスト追加</li>
+              <li>CI で MP4 自動生成</li>
             </ul>
-            <div class="ph-tag">Short Term</div>
+            <div class="ph-tag">Completed</div>
           </div>
           <div class="phase">
             <div class="ph-badge">Phase 2 — Optimization</div>
@@ -818,7 +825,7 @@
     </div>
     <div class="slide-foot">
       <span class="takeaway-label">Key Takeaway</span>
-      <span class="takeaway-text"><strong>Phase 1 でコア確立 → Phase 2 で品質担保 → Phase 3 で実機展開</strong> ―― 各フェーズの完了基準を CI/CD のグリーンで定義する</span>
+      <span class="takeaway-text"><strong>Phase 1 完了 ―― シミュレーションで Pick &amp; Place が動く状態</strong>。次は Phase 2 で性能チューニング、Phase 3 で実機 JetBot/UR5e へ展開する</span>
       <span class="slide-num">5 / 5</span>
     </div>
   </div>
