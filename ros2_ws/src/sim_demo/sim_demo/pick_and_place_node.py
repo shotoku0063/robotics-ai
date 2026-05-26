@@ -166,16 +166,18 @@ class PickAndPlaceNode(Node):
                     tf = self.tf_buffer.lookup_transform(
                         "world", "tool0", rclpy.time.Time()
                     )
+                    # Gazebo のエンティティ名は spawn 時に "cube_<color>" にしている
+                    entity_name = f"cube_{target}"
                     if not first_tf_logged:
                         self.get_logger().info(
-                            f"[carry] TF world→tool0 取得成功 (target={target}, "
+                            f"[carry] TF world→tool0 取得成功 (target={entity_name}, "
                             f"tool0=({tf.transform.translation.x:.3f}, "
                             f"{tf.transform.translation.y:.3f}, "
                             f"{tf.transform.translation.z:.3f}))"
                         )
                         first_tf_logged = True
                     state = EntityState()
-                    state.name = target
+                    state.name = entity_name
                     state.reference_frame = "world"
                     state.pose.position.x = tf.transform.translation.x
                     state.pose.position.y = tf.transform.translation.y
@@ -211,7 +213,7 @@ class PickAndPlaceNode(Node):
             return
         x, y, z = TRAY_DROP_XYZ[cube_name]
         state = EntityState()
-        state.name = cube_name
+        state.name = f"cube_{cube_name}"
         state.reference_frame = "world"
         state.pose.position.x = x
         state.pose.position.y = y
