@@ -157,8 +157,8 @@ class PickAndPlaceNode(Node):
 
     def _carry_loop(self):
         period = 1.0 / max(1.0, self.gripper_tick_hz)
-        first_tf_logged = False
         tf_fail_count = 0
+        tick = 0
         while not self._carry_stop.is_set():
             target = self._carry_target
             if target is not None and self.set_state_cli is not None:
@@ -167,15 +167,8 @@ class PickAndPlaceNode(Node):
                         "world", "tool0", rclpy.time.Time()
                     )
                     # Gazebo のエンティティ名は spawn 時に "cube_<color>" にしている
-                    entity_name = f"cube_{target}"
-                    if not first_tf_logged:
-                        self.get_logger().info(
-                            f"[carry] TF world→tool0 取得成功 (target={entity_name}, "
-                            f"tool0=({tf.transform.translation.x:.3f}, "
-                            f"{tf.transform.translation.y:.3f}, "
-                            f"{tf.transform.translation.z:.3f}))"
-                        )
-                        first_tf_logged = True
+                    # kinematic link を直接動かすため "model::link" 形式を使う
+                    entity_name = f"cube_{target}::link"
                     state = EntityState()
                     state.name = entity_name
                     state.reference_frame = "world"
@@ -187,6 +180,15 @@ class PickAndPlaceNode(Node):
                     req = SetEntityState.Request()
                     req.state = state
                     self.set_state_cli.call_async(req)
+                    tick += 1
+                    # 30 tick (約0.5秒) ごとに進捗ログ：carry が実際に走っていることを可視化
+                    if tick in (1, 30, 120, 300, 600):
+                        self.get_logger().info(
+                            f"[carry tick={tick}] target={entity_name} → "
+                            f"tool0=({tf.transform.translation.x:.3f}, "
+                            f"{tf.transform.translation.y:.3f}, "
+                            f"{tf.transform.translation.z:.3f})"
+                        )
                 except TransformException as exc:
                     tf_fail_count += 1
                     if tf_fail_count in (1, 30, 300):
@@ -213,7 +215,7 @@ class PickAndPlaceNode(Node):
             return
         x, y, z = TRAY_DROP_XYZ[cube_name]
         state = EntityState()
-        state.name = f"cube_{cube_name}"
+        state.name = f"cube_{cube_name}::link"
         state.reference_frame = "world"
         state.pose.position.x = x
         state.pose.position.y = y
