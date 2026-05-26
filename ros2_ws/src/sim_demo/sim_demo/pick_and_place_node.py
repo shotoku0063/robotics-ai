@@ -63,6 +63,14 @@ PLACE_POSES = {
     "green": [_rad(-35), _rad(-55), _rad(85), _rad(-120), _rad(-90), _rad(0)],
 }
 
+# release 後にキューブをトレー上へ最終配置する世界座標
+# (scene_workbench.sdf: tray=(0.7, 0.2, 0.43), 天板厚 0.01 / cube 0.04)
+TRAY_DROP_XYZ = {
+    "red":   (0.65, 0.20, 0.455),
+    "blue":  (0.70, 0.20, 0.455),
+    "green": (0.75, 0.20, 0.455),
+}
+
 
 def _lift_offset(pose, lift_rad=-0.3):
     """shoulder_lift_joint を上方向に少し回転させた“ホバー”姿勢."""
@@ -76,7 +84,7 @@ class PickAndPlaceNode(Node):
         super().__init__("pick_and_place_node")
         self.declare_parameter("startup_delay_sec", 10.0)
         self.declare_parameter("step_duration_sec", 2.5)
-        self.declare_parameter("gripper_tick_hz", 30.0)
+        self.declare_parameter("gripper_tick_hz", 60.0)
         self.startup_delay = self.get_parameter("startup_delay_sec").value
         self.step_duration = self.get_parameter("step_duration_sec").value
         self.gripper_tick_hz = self.get_parameter("gripper_tick_hz").value
@@ -183,6 +191,22 @@ class PickAndPlaceNode(Node):
     def _release(self):
         self._carry_target = None  # carry スレッドは生かしたまま、次の grip で再利用
 
+    def _drop_on_tray(self, cube_name):
+        """release 後にトレー上の固定位置へキューブをワープさせる."""
+        if self.set_state_cli is None or cube_name not in TRAY_DROP_XYZ:
+            return
+        x, y, z = TRAY_DROP_XYZ[cube_name]
+        state = EntityState()
+        state.name = cube_name
+        state.reference_frame = "world"
+        state.pose.position.x = x
+        state.pose.position.y = y
+        state.pose.position.z = z
+        state.pose.orientation.w = 1.0
+        req = SetEntityState.Request()
+        req.state = state
+        self.set_state_cli.call_async(req)
+
     def _orchestrate(self):
         time.sleep(self.startup_delay)
 
@@ -220,15 +244,18 @@ class PickAndPlaceNode(Node):
             pre_place = _lift_offset(place)
 
             self._send(pre_pick, label=f"{name} 上方へ移動 (pre-pick)")
-            self._send(pick, label=f"{name} を把持位置へ降下")
+            # 降下前に grip を活性化することで、衝突でキューブが弾かれる前に
+            # carry スレッドが tool0 へ追従させる
             self._grip(name)
             self.get_logger().info(f"  ✦ {name} を把持 (carry on)")
+            self._send(pick, label=f"{name} を把持位置へ降下 (carry中)")
             self._send(pre_pick, label=f"{name} を持ち上げ")
 
             self._send(pre_place, label=f"{name} をトレー上方へ移動")
             self._send(place, label=f"{name} をトレーに降下")
             self._release()
-            self.get_logger().info(f"  ✦ {name} を配置 (carry off)")
+            self._drop_on_tray(name)
+            self.get_logger().info(f"  ✦ {name} をトレーに配置 (carry off + drop)")
             self._send(pre_place, label=f"{name} 配置後に上昇")
 
         self._send(HOME, label="home (終端)")

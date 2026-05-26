@@ -2,6 +2,7 @@
 <sdf version="1.7">
   <model name="cube_red">
     <link name="link">
+      <kinematic>true</kinematic>
       <inertial>
         <mass>0.05</mass>
         <inertia>

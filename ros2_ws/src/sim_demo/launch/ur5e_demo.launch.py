@@ -59,12 +59,15 @@ def generate_launch_description():
         period=10.5,
         actions=[_spawn("scene_workbench", "scene_workbench")],
     )
+    # キューブは kinematic（cube_*.sdf 側で指定）。物理で動かない代わりに
+    # set_entity_state でテレポートして「掴んで運ぶ」見た目を作る。
+    # spawn z は table 天板 (z=0.425) + cube 半分 (0.02) = 0.445 でジャストフィット
     spawn_cubes = TimerAction(
         period=11.5,
         actions=[
-            _spawn("cube_red",   "cube_red",   pose=(0.40, -0.15, 0.45)),
-            _spawn("cube_blue",  "cube_blue",  pose=(0.50, -0.05, 0.45)),
-            _spawn("cube_green", "cube_green", pose=(0.60,  0.05, 0.45)),
+            _spawn("cube_red",   "cube_red",   pose=(0.40, -0.15, 0.445)),
+            _spawn("cube_blue",  "cube_blue",  pose=(0.50, -0.05, 0.445)),
+            _spawn("cube_green", "cube_green", pose=(0.60,  0.05, 0.445)),
         ],
     )
 
