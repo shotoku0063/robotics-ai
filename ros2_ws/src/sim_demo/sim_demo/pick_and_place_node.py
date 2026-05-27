@@ -167,8 +167,7 @@ class PickAndPlaceNode(Node):
                         "world", "tool0", rclpy.time.Time()
                     )
                     # Gazebo のエンティティ名は spawn 時に "cube_<color>" にしている
-                    # kinematic link を直接動かすため "model::link" 形式を使う
-                    entity_name = f"cube_{target}::link"
+                    entity_name = f"cube_{target}"
                     state = EntityState()
                     state.name = entity_name
                     state.reference_frame = "world"
@@ -215,7 +214,7 @@ class PickAndPlaceNode(Node):
             return
         x, y, z = TRAY_DROP_XYZ[cube_name]
         state = EntityState()
-        state.name = f"cube_{cube_name}::link"
+        state.name = f"cube_{cube_name}"
         state.reference_frame = "world"
         state.pose.position.x = x
         state.pose.position.y = y
