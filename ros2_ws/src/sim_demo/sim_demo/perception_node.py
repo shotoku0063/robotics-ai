@@ -70,6 +70,11 @@ class PerceptionNode(Node):
         self.detection_pub = self.create_publisher(
             String, "/perception/detections", 10
         )
+        # bbox / label / confidence を描画したフレームを publish する
+        # （video_recorder が拾って MP4 に焼くので、Perception の働きが映像で見える）
+        self.annotated_pub = self.create_publisher(
+            Image, "/perception/annotated_image", 10
+        )
         self._frame_count = 0
         self._announced_first_hit = False
 
@@ -89,6 +94,15 @@ class PerceptionNode(Node):
             "timestamp": self.get_clock().now().nanoseconds,
         })
         self.detection_pub.publish(out)
+
+        # 注釈付き画像 (bbox + label + 信頼度 + ヘッダ) を別トピックへ
+        annotated = self._annotate(cv_image, detections)
+        try:
+            ann_msg = self.bridge.cv2_to_imgmsg(annotated, encoding="bgr8")
+            ann_msg.header = msg.header  # 元フレームのタイムスタンプ・座標系を継承
+            self.annotated_pub.publish(ann_msg)
+        except Exception as exc:
+            self.get_logger().warn(f"annotated publish 失敗: {exc}")
 
         self._frame_count += 1
         if detections and not self._announced_first_hit:
@@ -154,6 +168,55 @@ class PerceptionNode(Node):
             ).to(self.device)
             score = self.model(tensor).item()
         return float(score)
+
+    def _annotate(self, image: np.ndarray, detections: list) -> np.ndarray:
+        """検出結果を画像にオーバーレイ. bbox / label / confidence + ヘッダ."""
+        canvas = image.copy()
+        color_bgr = {
+            "red":   (60,  60,  240),   # BGR (赤)
+            "blue":  (240, 100, 60),    # BGR (青)
+            "green": (60,  200, 60),    # BGR (緑)
+        }
+        for det in detections:
+            u, v = int(det["u"]), int(det["v"])
+            color = color_bgr.get(det["label"], (255, 255, 255))
+            # area から bbox 半径を推定 (面積 = πr² と仮定)
+            radius = max(28, int((det["area"] / 3.14159) ** 0.5) + 8)
+            cv2.rectangle(canvas, (u - radius, v - radius),
+                          (u + radius, v + radius), color, 2)
+            # ラベルテキスト
+            label_text = f"{det['label']} {det['confidence']:.2f}"
+            (tw, th), _ = cv2.getTextSize(
+                label_text, cv2.FONT_HERSHEY_SIMPLEX, 0.55, 1
+            )
+            cv2.rectangle(canvas,
+                          (u - radius, v - radius - th - 8),
+                          (u - radius + tw + 8, v - radius),
+                          color, -1)
+            cv2.putText(canvas, label_text,
+                        (u - radius + 4, v - radius - 4),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.55, (255, 255, 255), 1,
+                        cv2.LINE_AA)
+            # 中心マーカー
+            cv2.circle(canvas, (u, v), 3, color, -1)
+
+        # 上部ヘッダ
+        h, w = canvas.shape[:2]
+        cv2.rectangle(canvas, (0, 0), (w, 36), (20, 20, 20), -1)
+        cv2.putText(canvas,
+                    "AI Perception: OpenCV HSV + PyTorch CNN inference",
+                    (12, 24), cv2.FONT_HERSHEY_SIMPLEX, 0.55,
+                    (240, 240, 240), 1, cv2.LINE_AA)
+        # 下部ステータス
+        cv2.rectangle(canvas, (0, h - 28), (w, h), (20, 20, 20), -1)
+        status = (
+            f"frame {self._frame_count:04d}  |  detections: "
+            f"{len(detections)}  |  device: {self.device}"
+        )
+        cv2.putText(canvas, status, (12, h - 9),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.45,
+                    (220, 220, 220), 1, cv2.LINE_AA)
+        return canvas
 
     def _project_to_world(self, u: int, v: int, w: int, h: int) -> tuple:
         # 簡易マッピング: 画像中心を world (0.4, 0) に置き、視野を線形に展開

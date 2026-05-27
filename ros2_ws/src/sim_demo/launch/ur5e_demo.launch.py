@@ -79,19 +79,12 @@ def generate_launch_description():
         output="screen",
     )
 
-    # Pick & Place オーケストレーション
-    pick_place = Node(
-        package="sim_demo",
-        executable="pick_and_place",
-        name="pick_and_place_node",
-        output="screen",
-        parameters=[{
-            "startup_delay_sec": 14.0,   # gzserver + コントローラ + カメラ起動を待つ
-            "step_duration_sec": 2.5,
-        }],
-    )
+    # ※ pick_and_place ノードは現状の demo フォーカスから外している
+    #   （SetEntityState ベースの擬似 carry が物理エンジンと噛み合わず視覚的に
+    #   うまく見えなかったため、Perception 中心のデモへ軸足を変更）
 
-    # MP4 録画ノード（カメラ起動 t=10 〜 pick_and_place 終了 t=70 + 余裕 = 75秒）
+    # MP4 録画ノード ―― /perception/annotated_image を録ることで
+    # bbox / label / 推論信頼度が描画された "AI 検出ビデオ" になる
     recorder = Node(
         package="sim_demo",
         executable="video_recorder",
@@ -100,7 +93,8 @@ def generate_launch_description():
         parameters=[{
             "output_path": "/workspace/output/demo.mp4",
             "fps": 30,
-            "duration_sec": 75,
+            "duration_sec": 30,
+            "topic": "/perception/annotated_image",
         }],
     )
 
@@ -110,6 +104,5 @@ def generate_launch_description():
         spawn_scene,
         spawn_cubes,
         perception,
-        pick_place,
         recorder,
     ])

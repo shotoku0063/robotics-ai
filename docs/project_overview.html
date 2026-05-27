@@ -479,11 +479,11 @@
             <div class="ov-badge">✓ Outcome (already delivered)</div>
             <div class="ov-title">実装済みアウトカム</div>
             <ul class="ov-list">
-              <li>UR5e Pick &amp; Place を Gazebo で動作</li>
-              <li>OpenCV 色検出 + PyTorch CNN 推論</li>
-              <li>CI で MP4 自動生成（実機なし検証）</li>
+              <li>OpenCV HSV + PyTorch CNN リアル検出</li>
+              <li>UR5e + 検出物体を Gazebo で可視化</li>
+              <li>注釈オーバーレイ動画を CI 自動生成</li>
               <li>CUDA / CPU 透過的に切り替え</li>
-              <li>3 ワークフロー × 全グリーン体制</li>
+              <li>2 ワークフロー × 全グリーン体制</li>
             </ul>
           </div>
         </div>
@@ -604,15 +604,15 @@
               </div>
               <div class="flow-arrow">→</div>
               <div class="flow-node">
-                <div class="flow-node-name">Pick &amp; Place</div>
-                <div class="flow-node-topic">pan 補正 + carry TF</div>
-                <div class="flow-node-detail">JointTrajectory<br>Action Client</div>
+                <div class="flow-node-name">Annotator</div>
+                <div class="flow-node-topic">/perception/<br>annotated_image</div>
+                <div class="flow-node-detail">bbox + label +<br>confidence overlay</div>
               </div>
               <div class="flow-arrow">→</div>
               <div class="flow-node">
-                <div class="flow-node-name">UR5e (sim)</div>
-                <div class="flow-node-topic">joint_trajectory_<br>controller</div>
-                <div class="flow-node-detail">6軸関節制御<br>gazebo_ros2_control</div>
+                <div class="flow-node-name">Video Recorder</div>
+                <div class="flow-node-topic">output/demo.mp4</div>
+                <div class="flow-node-detail">FFmpeg subprocess<br>H.264 / 30fps</div>
               </div>
             </div>
           </div>
@@ -650,7 +650,7 @@
     </div>
     <div class="slide-foot">
       <span class="takeaway-label">Key Takeaway</span>
-      <span class="takeaway-text">Perception の検出 (x,y) で shoulder_pan を実行時補正 ―― <strong>OpenCV+PyTorch の認識結果がそのままジョイント軌道へ反映される ML→Motion 連携</strong></span>
+      <span class="takeaway-text">推論結果を bbox + 信頼度でオーバーレイし MP4 化 ―― <strong>OpenCV+PyTorch 検出が「映像として確認できる」エンドツーエンドパイプライン</strong></span>
       <span class="slide-num">3 / 5</span>
     </div>
   </div>
@@ -786,11 +786,11 @@
             <div class="ph-title">コア実装の完成</div>
             <ul class="ph-items ph-done">
               <li>OpenCV+PyTorch 物体検出</li>
-              <li>Pick &amp; Place ノード</li>
-              <li>UR5e 関節軌道制御</li>
-              <li>Launch ファイル整備</li>
+              <li>注釈オーバーレイ描画</li>
               <li>Gazebo シミュレーション</li>
-              <li>CI で MP4 自動生成</li>
+              <li>Launch ファイル整備</li>
+              <li>ヘッドレス MP4 録画</li>
+              <li>CI 全グリーン化</li>
             </ul>
             <div class="ph-tag">Completed</div>
           </div>
